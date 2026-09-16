@@ -802,7 +802,6 @@ class OverlayService : Service() {
         } ?: ((screenWidthPx - panelWidthPx) / 2 to (screenHeightPx - panelHeightPx) / 2)
 
         val composeView = ComposeView(this)
-        panelLifecycleOwner.attachTo(composeView)
         composeView.setContent {
             GrimoireTheme {
                 PanelContent(
@@ -863,6 +862,14 @@ class OverlayService : Service() {
             composeView,
             FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT),
         )
+        // Compose's window-level recomposer looks up the ViewTreeLifecycleOwner
+        // from the window's actual root view (rootView here, since that's what
+        // gets passed to windowManager.addView() below) rather than from the
+        // ComposeView specifically - tagging composeView instead of rootView
+        // crashes with "ViewTreeLifecycleOwner not found" the moment the
+        // ComposeView attaches. A child's own upward search still finds an
+        // owner tagged on its parent, so tagging rootView alone covers both.
+        panelLifecycleOwner.attachTo(rootView)
         rootView.viewTreeObserver.addOnWindowFocusChangeListener { hasFocus ->
             if (!hasFocus && panelParams.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE == 0) {
                 panelParams.flags = panelParams.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
