@@ -1,0 +1,178 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ironsworn Oracles</title>
+<script src="../shared/bubble.js"></script>
+<link rel="stylesheet" href="../shared/theme.css">
+<style>
+  #grid { grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); }
+  /* Oracle picker: a themed pill select, same visual language as .text-input
+     (shared/theme.css) but not promoted there since this is the only tool
+     with a dropdown. */
+  .oracle-picker {
+    flex: 0 0 auto;
+    padding: 10px 12px 0;
+    border-top: 1px solid var(--line);
+  }
+  #oracleSelect {
+    width: 100%;
+    background: var(--card);
+    border: 1.5px solid var(--line);
+    border-radius: 999px;
+    padding: 10px 16px;
+    font-family: "Figtree", sans-serif;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text);
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236f6285' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    background-size: 16px;
+  }
+  #oracleSelect:focus {
+    outline: none;
+    border-color: var(--gem-d12);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--gem-d12) 25%, transparent);
+  }
+</style>
+</head>
+<body>
+  <noscript>
+    <div style="padding:16px;font-family:system-ui,sans-serif;">
+      <h2>Ironsworn Oracles</h2>
+      <p>This tool needs JavaScript, which is currently disabled in this WebView.</p>
+      <p>That shouldn't happen - the app enables it itself. Please report this bug.</p>
+    </div>
+  </noscript>
+
+  <div id="log"></div>
+  <div class="oracle-picker">
+    <select id="oracleSelect" aria-label="Oracle">
+      <option value="ask">Ask the Oracle</option>
+      <option value="plot">Plot &amp; Twist</option>
+      <option value="names">Name Generator</option>
+      <option value="settlement">Settlement &amp; Place</option>
+    </select>
+  </div>
+  <div id="grid"></div>
+
+  <script src="../shared/oracle.js"></script>
+  <script>
+    // Ironsworn (classic rulebook) oracles, by Shawn Tomkin - CC BY 4.0
+    // (https://creativecommons.org/licenses/by/4.0). Sourced from Datasworn
+    // (https://github.com/rsek/datasworn). Rows are {min, max, text}; roll
+    // 1d100 and find the row whose range contains it.
+
+    // Ask the Oracle: yes/no tables at five levels of likelihood.
+    const ASK_TABLES = {"almost_certain":{"name":"Almost Certain","dice":"1d100","rows":[{"min":1,"max":10,"text":"No"},{"min":11,"max":100,"text":"Yes"}]},"likely":{"name":"Likely","dice":"1d100","rows":[{"min":1,"max":25,"text":"No"},{"min":26,"max":100,"text":"Yes"}]},"fifty_fifty":{"name":"50/50","dice":"1d100","rows":[{"min":1,"max":50,"text":"No"},{"min":51,"max":100,"text":"Yes"}]},"unlikely":{"name":"Unlikely","dice":"1d100","rows":[{"min":1,"max":75,"text":"No"},{"min":76,"max":100,"text":"Yes"}]},"small_chance":{"name":"Small Chance","dice":"1d100","rows":[{"min":1,"max":90,"text":"No"},{"min":91,"max":100,"text":"Yes"}]}};
+
+    // Plot & Twist: Action + Theme oracles, combined for a discovery, event,
+    // goal, or plot twist.
+    const PLOT_TABLES = {"action":{"name":"Action","dice":"1d100","rows":[{"min":1,"max":1,"text":"Scheme"},{"min":2,"max":2,"text":"Clash"},{"min":3,"max":3,"text":"Weaken"},{"min":4,"max":4,"text":"Initiate"},{"min":5,"max":5,"text":"Create"},{"min":6,"max":6,"text":"Swear"},{"min":7,"max":7,"text":"Avenge"},{"min":8,"max":8,"text":"Guard"},{"min":9,"max":9,"text":"Defeat"},{"min":10,"max":10,"text":"Control"},{"min":11,"max":11,"text":"Break"},{"min":12,"max":12,"text":"Risk"},{"min":13,"max":13,"text":"Surrender"},{"min":14,"max":14,"text":"Inspect"},{"min":15,"max":15,"text":"Raid"},{"min":16,"max":16,"text":"Evade"},{"min":17,"max":17,"text":"Assault"},{"min":18,"max":18,"text":"Deflect"},{"min":19,"max":19,"text":"Threaten"},{"min":20,"max":20,"text":"Attack"},{"min":21,"max":21,"text":"Leave"},{"min":22,"max":22,"text":"Preserve"},{"min":23,"max":23,"text":"Manipulate"},{"min":24,"max":24,"text":"Remove"},{"min":25,"max":25,"text":"Eliminate"},{"min":26,"max":26,"text":"Withdraw"},{"min":27,"max":27,"text":"Abandon"},{"min":28,"max":28,"text":"Investigate"},{"min":29,"max":29,"text":"Hold"},{"min":30,"max":30,"text":"Focus"},{"min":31,"max":31,"text":"Uncover"},{"min":32,"max":32,"text":"Breach"},{"min":33,"max":33,"text":"Aid"},{"min":34,"max":34,"text":"Uphold"},{"min":35,"max":35,"text":"Falter"},{"min":36,"max":36,"text":"Suppress"},{"min":37,"max":37,"text":"Hunt"},{"min":38,"max":38,"text":"Share"},{"min":39,"max":39,"text":"Destroy"},{"min":40,"max":40,"text":"Avoid"},{"min":41,"max":41,"text":"Reject"},{"min":42,"max":42,"text":"Demand"},{"min":43,"max":43,"text":"Explore"},{"min":44,"max":44,"text":"Bolster"},{"min":45,"max":45,"text":"Seize"},{"min":46,"max":46,"text":"Mourn"},{"min":47,"max":47,"text":"Reveal"},{"min":48,"max":48,"text":"Gather"},{"min":49,"max":49,"text":"Defy"},{"min":50,"max":50,"text":"Transform"},{"min":51,"max":51,"text":"Persevere"},{"min":52,"max":52,"text":"Serve"},{"min":53,"max":53,"text":"Begin"},{"min":54,"max":54,"text":"Move"},{"min":55,"max":55,"text":"Coordinate"},{"min":56,"max":56,"text":"Resist"},{"min":57,"max":57,"text":"Await"},{"min":58,"max":58,"text":"Impress"},{"min":59,"max":59,"text":"Take"},{"min":60,"max":60,"text":"Oppose"},{"min":61,"max":61,"text":"Capture"},{"min":62,"max":62,"text":"Overwhelm"},{"min":63,"max":63,"text":"Challenge"},{"min":64,"max":64,"text":"Acquire"},{"min":65,"max":65,"text":"Protect"},{"min":66,"max":66,"text":"Finish"},{"min":67,"max":67,"text":"Strengthen"},{"min":68,"max":68,"text":"Restore"},{"min":69,"max":69,"text":"Advance"},{"min":70,"max":70,"text":"Command"},{"min":71,"max":71,"text":"Refuse"},{"min":72,"max":72,"text":"Find"},{"min":73,"max":73,"text":"Deliver"},{"min":74,"max":74,"text":"Hide"},{"min":75,"max":75,"text":"Fortify"},{"min":76,"max":76,"text":"Betray"},{"min":77,"max":77,"text":"Secure"},{"min":78,"max":78,"text":"Arrive"},{"min":79,"max":79,"text":"Affect"},{"min":80,"max":80,"text":"Change"},{"min":81,"max":81,"text":"Defend"},{"min":82,"max":82,"text":"Debate"},{"min":83,"max":83,"text":"Support"},{"min":84,"max":84,"text":"Follow"},{"min":85,"max":85,"text":"Construct"},{"min":86,"max":86,"text":"Locate"},{"min":87,"max":87,"text":"Endure"},{"min":88,"max":88,"text":"Release"},{"min":89,"max":89,"text":"Lose"},{"min":90,"max":90,"text":"Reduce"},{"min":91,"max":91,"text":"Escalate"},{"min":92,"max":92,"text":"Distract"},{"min":93,"max":93,"text":"Journey"},{"min":94,"max":94,"text":"Escort"},{"min":95,"max":95,"text":"Learn"},{"min":96,"max":96,"text":"Communicate"},{"min":97,"max":97,"text":"Depart"},{"min":98,"max":98,"text":"Search"},{"min":99,"max":99,"text":"Charge"},{"min":100,"max":100,"text":"Summon"}]},"theme":{"name":"Theme","dice":"1d100","rows":[{"min":1,"max":1,"text":"Risk"},{"min":2,"max":2,"text":"Ability"},{"min":3,"max":3,"text":"Price"},{"min":4,"max":4,"text":"Ally"},{"min":5,"max":5,"text":"Battle"},{"min":6,"max":6,"text":"Safety"},{"min":7,"max":7,"text":"Survival"},{"min":8,"max":8,"text":"Weapon"},{"min":9,"max":9,"text":"Wound"},{"min":10,"max":10,"text":"Shelter"},{"min":11,"max":11,"text":"Leader"},{"min":12,"max":12,"text":"Fear"},{"min":13,"max":13,"text":"Time"},{"min":14,"max":14,"text":"Duty"},{"min":15,"max":15,"text":"Secret"},{"min":16,"max":16,"text":"Innocence"},{"min":17,"max":17,"text":"Renown"},{"min":18,"max":18,"text":"Direction"},{"min":19,"max":19,"text":"Death"},{"min":20,"max":20,"text":"Honor"},{"min":21,"max":21,"text":"Labor"},{"min":22,"max":22,"text":"Solution"},{"min":23,"max":23,"text":"Tool"},{"min":24,"max":24,"text":"Balance"},{"min":25,"max":25,"text":"Love"},{"min":26,"max":26,"text":"Barrier"},{"min":27,"max":27,"text":"Creation"},{"min":28,"max":28,"text":"Decay"},{"min":29,"max":29,"text":"Trade"},{"min":30,"max":30,"text":"Bond"},{"min":31,"max":31,"text":"Hope"},{"min":32,"max":32,"text":"Superstition"},{"min":33,"max":33,"text":"Peace"},{"min":34,"max":34,"text":"Deception"},{"min":35,"max":35,"text":"History"},{"min":36,"max":36,"text":"World"},{"min":37,"max":37,"text":"Vow"},{"min":38,"max":38,"text":"Protection"},{"min":39,"max":39,"text":"Nature"},{"min":40,"max":40,"text":"Opinion"},{"min":41,"max":41,"text":"Burden"},{"min":42,"max":42,"text":"Vengeance"},{"min":43,"max":43,"text":"Opportunity"},{"min":44,"max":44,"text":"Faction"},{"min":45,"max":45,"text":"Danger"},{"min":46,"max":46,"text":"Corruption"},{"min":47,"max":47,"text":"Freedom"},{"min":48,"max":48,"text":"Debt"},{"min":49,"max":49,"text":"Hate"},{"min":50,"max":50,"text":"Possession"},{"min":51,"max":51,"text":"Stranger"},{"min":52,"max":52,"text":"Passage"},{"min":53,"max":53,"text":"Land"},{"min":54,"max":54,"text":"Creature"},{"min":55,"max":55,"text":"Disease"},{"min":56,"max":56,"text":"Advantage"},{"min":57,"max":57,"text":"Blood"},{"min":58,"max":58,"text":"Language"},{"min":59,"max":59,"text":"Rumor"},{"min":60,"max":60,"text":"Weakness"},{"min":61,"max":61,"text":"Greed"},{"min":62,"max":62,"text":"Family"},{"min":63,"max":63,"text":"Resource"},{"min":64,"max":64,"text":"Structure"},{"min":65,"max":65,"text":"Dream"},{"min":66,"max":66,"text":"Community"},{"min":67,"max":67,"text":"War"},{"min":68,"max":68,"text":"Portent"},{"min":69,"max":69,"text":"Prize"},{"min":70,"max":70,"text":"Destiny"},{"min":71,"max":71,"text":"Momentum"},{"min":72,"max":72,"text":"Power"},{"min":73,"max":73,"text":"Memory"},{"min":74,"max":74,"text":"Ruin"},{"min":75,"max":75,"text":"Mysticism"},{"min":76,"max":76,"text":"Rival"},{"min":77,"max":77,"text":"Problem"},{"min":78,"max":78,"text":"Idea"},{"min":79,"max":79,"text":"Revenge"},{"min":80,"max":80,"text":"Health"},{"min":81,"max":81,"text":"Fellowship"},{"min":82,"max":82,"text":"Enemy"},{"min":83,"max":83,"text":"Religion"},{"min":84,"max":84,"text":"Spirit"},{"min":85,"max":85,"text":"Fame"},{"min":86,"max":86,"text":"Desolation"},{"min":87,"max":87,"text":"Strength"},{"min":88,"max":88,"text":"Knowledge"},{"min":89,"max":89,"text":"Truth"},{"min":90,"max":90,"text":"Quest"},{"min":91,"max":91,"text":"Pride"},{"min":92,"max":92,"text":"Loss"},{"min":93,"max":93,"text":"Law"},{"min":94,"max":94,"text":"Path"},{"min":95,"max":95,"text":"Warning"},{"min":96,"max":96,"text":"Relationship"},{"min":97,"max":97,"text":"Wealth"},{"min":98,"max":98,"text":"Home"},{"min":99,"max":99,"text":"Strategy"},{"min":100,"max":100,"text":"Supply"}]}};
+
+    // Name Generator: names for Ironlanders, elves, giants, varou, and trolls.
+    const NAME_TABLES = {"elf_names":{"name":"Elf","dice":"1d100","rows":[{"min":1,"max":2,"text":"Arsula"},{"min":3,"max":4,"text":"Naidita"},{"min":5,"max":6,"text":"Belesunna"},{"min":7,"max":8,"text":"Vidarna"},{"min":9,"max":10,"text":"Ninsunu"},{"min":11,"max":12,"text":"Balathu"},{"min":13,"max":14,"text":"Dorosi"},{"min":15,"max":16,"text":"Gezera"},{"min":17,"max":18,"text":"Zursan"},{"min":19,"max":20,"text":"Seleeku"},{"min":21,"max":22,"text":"Utamara"},{"min":23,"max":24,"text":"Nebakay"},{"min":25,"max":26,"text":"Dismashk"},{"min":27,"max":28,"text":"Mitunu"},{"min":29,"max":30,"text":"Atani"},{"min":31,"max":32,"text":"Kinzura"},{"min":33,"max":34,"text":"Sumula"},{"min":35,"max":36,"text":"Ukames"},{"min":37,"max":38,"text":"Ahmeshki"},{"min":39,"max":40,"text":"Ilsit"},{"min":41,"max":42,"text":"Mayatanay"},{"min":43,"max":44,"text":"Etana"},{"min":45,"max":46,"text":"Gamanna"},{"min":47,"max":48,"text":"Nessana"},{"min":49,"max":50,"text":"Uralar"},{"min":51,"max":52,"text":"Tishetu"},{"min":53,"max":54,"text":"Leucia"},{"min":55,"max":56,"text":"Sutahe"},{"min":57,"max":58,"text":"Dotani"},{"min":59,"max":60,"text":"Uktannu"},{"min":61,"max":62,"text":"Retenay"},{"min":63,"max":64,"text":"Kendalanu"},{"min":65,"max":66,"text":"Tahuta"},{"min":67,"max":68,"text":"Mattissa"},{"min":69,"max":70,"text":"Anatu"},{"min":71,"max":72,"text":"Aralu"},{"min":73,"max":74,"text":"Arakhi"},{"min":75,"max":76,"text":"Ibrahem"},{"min":77,"max":78,"text":"Sinosu"},{"min":79,"max":80,"text":"Jemshida"},{"min":81,"max":82,"text":"Visapni"},{"min":83,"max":84,"text":"Hullata"},{"min":85,"max":86,"text":"Sidura"},{"min":87,"max":88,"text":"Kerihu"},{"min":89,"max":90,"text":"Ereshki"},{"min":91,"max":92,"text":"Cybela"},{"min":93,"max":94,"text":"Anunna"},{"min":95,"max":96,"text":"Otani"},{"min":97,"max":98,"text":"Ditani"},{"min":99,"max":100,"text":"Faraza"}]},"ironlander_a":{"name":"Ironlander A","dice":"1d100","rows":[{"min":1,"max":1,"text":"Solana"},{"min":2,"max":2,"text":"Keelan"},{"min":3,"max":3,"text":"Cadigan"},{"min":4,"max":4,"text":"Sola"},{"min":5,"max":5,"text":"Kodroth"},{"min":6,"max":6,"text":"Kione"},{"min":7,"max":7,"text":"Katja"},{"min":8,"max":8,"text":"Tio"},{"min":9,"max":9,"text":"Artiga"},{"min":10,"max":10,"text":"Eos"},{"min":11,"max":11,"text":"Bastien"},{"min":12,"max":12,"text":"Elli"},{"min":13,"max":13,"text":"Maura"},{"min":14,"max":14,"text":"Haleema"},{"min":15,"max":15,"text":"Abella"},{"min":16,"max":16,"text":"Morter"},{"min":17,"max":17,"text":"Wulan"},{"min":18,"max":18,"text":"Mai"},{"min":19,"max":19,"text":"Farina"},{"min":20,"max":20,"text":"Pearce"},{"min":21,"max":21,"text":"Wynne"},{"min":22,"max":22,"text":"Haf"},{"min":23,"max":23,"text":"Aeddon"},{"min":24,"max":24,"text":"Khinara"},{"min":25,"max":25,"text":"Milla"},{"min":26,"max":26,"text":"Nakata"},{"min":27,"max":27,"text":"Kynan"},{"min":28,"max":28,"text":"Kiah"},{"min":29,"max":29,"text":"Jaggar"},{"min":30,"max":30,"text":"Beca"},{"min":31,"max":31,"text":"Ikram"},{"min":32,"max":32,"text":"Melia"},{"min":33,"max":33,"text":"Sidan"},{"min":34,"max":34,"text":"Deshi"},{"min":35,"max":35,"text":"Tessa"},{"min":36,"max":36,"text":"Sibila"},{"min":37,"max":37,"text":"Morien"},{"min":38,"max":38,"text":"Mona"},{"min":39,"max":39,"text":"Padma"},{"min":40,"max":40,"text":"Avella"},{"min":41,"max":41,"text":"Naila"},{"min":42,"max":42,"text":"Lio"},{"min":43,"max":43,"text":"Cera"},{"min":44,"max":44,"text":"Ithela"},{"min":45,"max":45,"text":"Zhan"},{"min":46,"max":46,"text":"Kaivan"},{"min":47,"max":47,"text":"Valeri"},{"min":48,"max":48,"text":"Hirsham"},{"min":49,"max":49,"text":"Pemba"},{"min":50,"max":50,"text":"Edda"},{"min":51,"max":51,"text":"Lestara"},{"min":52,"max":52,"text":"Lago"},{"min":53,"max":53,"text":"Elstan"},{"min":54,"max":54,"text":"Saskia"},{"min":55,"max":55,"text":"Kabeera"},{"min":56,"max":56,"text":"Caldas"},{"min":57,"max":57,"text":"Nisus"},{"min":58,"max":58,"text":"Serene"},{"min":59,"max":59,"text":"Chenda"},{"min":60,"max":60,"text":"Themon"},{"min":61,"max":61,"text":"Erin"},{"min":62,"max":62,"text":"Alban"},{"min":63,"max":63,"text":"Parcell"},{"min":64,"max":64,"text":"Jelma"},{"min":65,"max":65,"text":"Willa"},{"min":66,"max":66,"text":"Nadira"},{"min":67,"max":67,"text":"Gwen"},{"min":68,"max":68,"text":"Amara"},{"min":69,"max":69,"text":"Masias"},{"min":70,"max":70,"text":"Kanno"},{"min":71,"max":71,"text":"Razeena"},{"min":72,"max":72,"text":"Mira"},{"min":73,"max":73,"text":"Perella"},{"min":74,"max":74,"text":"Myrick"},{"min":75,"max":75,"text":"Qamar"},{"min":76,"max":76,"text":"Kormak"},{"min":77,"max":77,"text":"Zura"},{"min":78,"max":78,"text":"Zanita"},{"min":79,"max":79,"text":"Brynn"},{"min":80,"max":80,"text":"Tegan"},{"min":81,"max":81,"text":"Pendry"},{"min":82,"max":82,"text":"Quinn"},{"min":83,"max":83,"text":"Fanir"},{"min":84,"max":84,"text":"Glain"},{"min":85,"max":85,"text":"Emelyn"},{"min":86,"max":86,"text":"Kendi"},{"min":87,"max":87,"text":"Althus"},{"min":88,"max":88,"text":"Leela"},{"min":89,"max":89,"text":"Ishana"},{"min":90,"max":90,"text":"Flint"},{"min":91,"max":91,"text":"Delkash"},{"min":92,"max":92,"text":"Nia"},{"min":93,"max":93,"text":"Nan"},{"min":94,"max":94,"text":"Keeara"},{"min":95,"max":95,"text":"Katania"},{"min":96,"max":96,"text":"Morell"},{"min":97,"max":97,"text":"Temir"},{"min":98,"max":98,"text":"Bas"},{"min":99,"max":99,"text":"Sabine"},{"min":100,"max":100,"text":"Tallus"}]},"ironlander_b":{"name":"Ironlander B","dice":"1d100","rows":[{"min":1,"max":1,"text":"Segura"},{"min":2,"max":2,"text":"Gethin"},{"min":3,"max":3,"text":"Bataar"},{"min":4,"max":4,"text":"Basira"},{"min":5,"max":5,"text":"Joa"},{"min":6,"max":6,"text":"Glynn"},{"min":7,"max":7,"text":"Toran"},{"min":8,"max":8,"text":"Arasen"},{"min":9,"max":9,"text":"Kuron"},{"min":10,"max":10,"text":"Griff"},{"min":11,"max":11,"text":"Owena"},{"min":12,"max":12,"text":"Adda"},{"min":13,"max":13,"text":"Euros"},{"min":14,"max":14,"text":"Kova"},{"min":15,"max":15,"text":"Kara"},{"min":16,"max":16,"text":"Morgan"},{"min":17,"max":17,"text":"Nanda"},{"min":18,"max":18,"text":"Tamara"},{"min":19,"max":19,"text":"Asha"},{"min":20,"max":20,"text":"Delos"},{"min":21,"max":21,"text":"Torgan"},{"min":22,"max":22,"text":"Makari"},{"min":23,"max":23,"text":"Selva"},{"min":24,"max":24,"text":"Kimura"},{"min":25,"max":25,"text":"Rhian"},{"min":26,"max":26,"text":"Tristan"},{"min":27,"max":27,"text":"Siorra"},{"min":28,"max":28,"text":"Sayer"},{"min":29,"max":29,"text":"Cortina"},{"min":30,"max":30,"text":"Vesna"},{"min":31,"max":31,"text":"Kataka"},{"min":32,"max":32,"text":"Keyshia"},{"min":33,"max":33,"text":"Mila"},{"min":34,"max":34,"text":"Lili"},{"min":35,"max":35,"text":"Vigo"},{"min":36,"max":36,"text":"Sadia"},{"min":37,"max":37,"text":"Malik"},{"min":38,"max":38,"text":"Dag"},{"min":39,"max":39,"text":"Kuno"},{"min":40,"max":40,"text":"Reva"},{"min":41,"max":41,"text":"Kai"},{"min":42,"max":42,"text":"Kalina"},{"min":43,"max":43,"text":"Jihan"},{"min":44,"max":44,"text":"Hennion"},{"min":45,"max":45,"text":"Abram"},{"min":46,"max":46,"text":"Aida"},{"min":47,"max":47,"text":"Myrtle"},{"min":48,"max":48,"text":"Nekun"},{"min":49,"max":49,"text":"Menna"},{"min":50,"max":50,"text":"Tahir"},{"min":51,"max":51,"text":"Sarria"},{"min":52,"max":52,"text":"Nakura"},{"min":53,"max":53,"text":"Akiya"},{"min":54,"max":54,"text":"Talan"},{"min":55,"max":55,"text":"Mattick"},{"min":56,"max":56,"text":"Okoth"},{"min":57,"max":57,"text":"Khulan"},{"min":58,"max":58,"text":"Verena"},{"min":59,"max":59,"text":"Beltran"},{"min":60,"max":60,"text":"Del"},{"min":61,"max":61,"text":"Ranna"},{"min":62,"max":62,"text":"Alina"},{"min":63,"max":63,"text":"Muna"},{"min":64,"max":64,"text":"Mura"},{"min":65,"max":65,"text":"Torrens"},{"min":66,"max":66,"text":"Yuda"},{"min":67,"max":67,"text":"Nazmi"},{"min":68,"max":68,"text":"Ghalen"},{"min":69,"max":69,"text":"Sarda"},{"min":70,"max":70,"text":"Shona"},{"min":71,"max":71,"text":"Kalidas"},{"min":72,"max":72,"text":"Wena"},{"min":73,"max":73,"text":"Sendra"},{"min":74,"max":74,"text":"Kori"},{"min":75,"max":75,"text":"Setara"},{"min":76,"max":76,"text":"Lucia"},{"min":77,"max":77,"text":"Maya"},{"min":78,"max":78,"text":"Reema"},{"min":79,"max":79,"text":"Yorath"},{"min":80,"max":80,"text":"Rhoddri"},{"min":81,"max":81,"text":"Shekhar"},{"min":82,"max":82,"text":"Servan"},{"min":83,"max":83,"text":"Reese"},{"min":84,"max":84,"text":"Kenrick"},{"min":85,"max":85,"text":"Indirra"},{"min":86,"max":86,"text":"Giliana"},{"min":87,"max":87,"text":"Jebran"},{"min":88,"max":88,"text":"Kotama"},{"min":89,"max":89,"text":"Fara"},{"min":90,"max":90,"text":"Katrin"},{"min":91,"max":91,"text":"Namba"},{"min":92,"max":92,"text":"Lona"},{"min":93,"max":93,"text":"Taylah"},{"min":94,"max":94,"text":"Kato"},{"min":95,"max":95,"text":"Esra"},{"min":96,"max":96,"text":"Eleri"},{"min":97,"max":97,"text":"Irsia"},{"min":98,"max":98,"text":"Kayu"},{"min":99,"max":99,"text":"Bevan"},{"min":100,"max":100,"text":"Chandra"}]},"giant_names":{"name":"Giant","dice":"1d100","rows":[{"min":1,"max":4,"text":"Chony"},{"min":5,"max":8,"text":"Banda"},{"min":9,"max":12,"text":"Jochu"},{"min":13,"max":16,"text":"Kira"},{"min":17,"max":20,"text":"Khatir"},{"min":21,"max":24,"text":"Chaidu"},{"min":25,"max":28,"text":"Atan"},{"min":29,"max":32,"text":"Buandu"},{"min":33,"max":36,"text":"Javyn"},{"min":37,"max":40,"text":"Khashin"},{"min":41,"max":44,"text":"Bayara"},{"min":45,"max":48,"text":"Temura"},{"min":49,"max":52,"text":"Kidha"},{"min":53,"max":56,"text":"Kathos"},{"min":57,"max":60,"text":"Tanua"},{"min":61,"max":64,"text":"Bashtu"},{"min":65,"max":68,"text":"Jaran"},{"min":69,"max":72,"text":"Othos"},{"min":73,"max":76,"text":"Khutan"},{"min":77,"max":80,"text":"Otaan"},{"min":81,"max":84,"text":"Martu"},{"min":85,"max":88,"text":"Baku"},{"min":89,"max":92,"text":"Tuban"},{"min":93,"max":96,"text":"Qudan"},{"min":97,"max":100,"text":"Denua"}]},"varou_names":{"name":"Varou","dice":"1d100","rows":[{"min":1,"max":4,"text":"Vata"},{"min":5,"max":8,"text":"Zora"},{"min":9,"max":12,"text":"Jasna"},{"min":13,"max":16,"text":"Charna"},{"min":17,"max":20,"text":"Tana"},{"min":21,"max":24,"text":"Soveen"},{"min":25,"max":28,"text":"Radka"},{"min":29,"max":32,"text":"Zlata"},{"min":33,"max":36,"text":"Leesla"},{"min":37,"max":40,"text":"Byna"},{"min":41,"max":44,"text":"Meeka"},{"min":45,"max":48,"text":"Iskra"},{"min":49,"max":52,"text":"Jarek"},{"min":53,"max":56,"text":"Darva"},{"min":57,"max":60,"text":"Neda"},{"min":61,"max":64,"text":"Keha"},{"min":65,"max":68,"text":"Zhivka"},{"min":69,"max":72,"text":"Kvata"},{"min":73,"max":76,"text":"Staysa"},{"min":77,"max":80,"text":"Evka"},{"min":81,"max":84,"text":"Vuksha"},{"min":85,"max":88,"text":"Muko"},{"min":89,"max":92,"text":"Dreko"},{"min":93,"max":96,"text":"Aleko"},{"min":97,"max":100,"text":"Vojan"}]},"troll_names":{"name":"Troll","dice":"1d100","rows":[{"min":1,"max":4,"text":"Rattle"},{"min":5,"max":8,"text":"Scratch"},{"min":9,"max":12,"text":"Wallow"},{"min":13,"max":16,"text":"Groak"},{"min":17,"max":20,"text":"Gimble"},{"min":21,"max":24,"text":"Scar"},{"min":25,"max":28,"text":"Cratch"},{"min":29,"max":32,"text":"Creech"},{"min":33,"max":36,"text":"Shush"},{"min":37,"max":40,"text":"Glush"},{"min":41,"max":44,"text":"Slar"},{"min":45,"max":48,"text":"Gnash"},{"min":49,"max":52,"text":"Stoad"},{"min":53,"max":56,"text":"Grig"},{"min":57,"max":60,"text":"Bleat"},{"min":61,"max":64,"text":"Chortle"},{"min":65,"max":68,"text":"Cluck"},{"min":69,"max":72,"text":"Slith"},{"min":73,"max":76,"text":"Mongo"},{"min":77,"max":80,"text":"Creak"},{"min":81,"max":84,"text":"Burble"},{"min":85,"max":88,"text":"Vrusk"},{"min":89,"max":92,"text":"Snuffle"},{"min":93,"max":96,"text":"Herk"}]}};
+
+    // Settlement & Place: region, location, descriptor, trouble, and
+    // settlement-name oracles.
+    const SETTLEMENT_TABLES = {"region":{"name":"Region","dice":"1d100","rows":[{"min":1,"max":12,"text":"Barrier Islands"},{"min":13,"max":24,"text":"Ragged Coast"},{"min":25,"max":34,"text":"Deep Wilds"},{"min":35,"max":46,"text":"Flooded Lands"},{"min":47,"max":60,"text":"Havens"},{"min":61,"max":72,"text":"Hinterlands"},{"min":73,"max":84,"text":"Tempest Hills"},{"min":85,"max":94,"text":"Veiled Mountains"},{"min":95,"max":99,"text":"Shattered Wastes"},{"min":100,"max":100,"text":"Elsewhere"}]},"location":{"name":"Location","dice":"1d100","rows":[{"min":1,"max":1,"text":"Hideout"},{"min":2,"max":2,"text":"Ruin"},{"min":3,"max":3,"text":"Mine"},{"min":4,"max":4,"text":"Waste"},{"min":5,"max":5,"text":"Mystical Site"},{"min":6,"max":6,"text":"Path"},{"min":7,"max":7,"text":"Outpost"},{"min":8,"max":8,"text":"Wall"},{"min":9,"max":9,"text":"Battlefield"},{"min":10,"max":10,"text":"Hovel"},{"min":11,"max":11,"text":"Spring"},{"min":12,"max":12,"text":"Lair"},{"min":13,"max":13,"text":"Fort"},{"min":14,"max":14,"text":"Bridge"},{"min":15,"max":15,"text":"Camp"},{"min":16,"max":16,"text":"Cairn/Grave"},{"min":17,"max":18,"text":"Caravan"},{"min":19,"max":20,"text":"Waterfall"},{"min":21,"max":22,"text":"Cave"},{"min":23,"max":24,"text":"Swamp"},{"min":25,"max":26,"text":"Fen"},{"min":27,"max":28,"text":"Ravine"},{"min":29,"max":30,"text":"Road"},{"min":31,"max":32,"text":"Tree"},{"min":33,"max":34,"text":"Pond"},{"min":35,"max":36,"text":"Fields"},{"min":37,"max":38,"text":"Marsh"},{"min":39,"max":40,"text":"Steading"},{"min":41,"max":42,"text":"Rapids"},{"min":43,"max":44,"text":"Pass"},{"min":45,"max":46,"text":"Trail"},{"min":47,"max":48,"text":"Glade"},{"min":49,"max":50,"text":"Plain"},{"min":51,"max":52,"text":"Ridge"},{"min":53,"max":54,"text":"Cliff"},{"min":55,"max":56,"text":"Grove"},{"min":57,"max":58,"text":"Village"},{"min":59,"max":60,"text":"Moor"},{"min":61,"max":62,"text":"Thicket"},{"min":63,"max":64,"text":"River Ford"},{"min":65,"max":66,"text":"Valley"},{"min":67,"max":68,"text":"Bay/Fjord"},{"min":69,"max":70,"text":"Foothills"},{"min":71,"max":72,"text":"Lake"},{"min":73,"max":75,"text":"River"},{"min":76,"max":79,"text":"Forest"},{"min":80,"max":83,"text":"Coast"},{"min":84,"max":88,"text":"Hill"},{"min":89,"max":93,"text":"Mountain"},{"min":94,"max":99,"text":"Woods"},{"min":100,"max":100,"text":"Anomaly"}]},"location_descriptor":{"name":"Location Descriptor","dice":"1d100","rows":[{"min":1,"max":2,"text":"High"},{"min":3,"max":4,"text":"Remote"},{"min":5,"max":6,"text":"Exposed"},{"min":7,"max":8,"text":"Small"},{"min":9,"max":10,"text":"Broken"},{"min":11,"max":12,"text":"Diverse"},{"min":13,"max":14,"text":"Rough"},{"min":15,"max":16,"text":"Dark"},{"min":17,"max":18,"text":"Shadowy"},{"min":19,"max":20,"text":"Contested"},{"min":21,"max":22,"text":"Grim"},{"min":23,"max":24,"text":"Wild"},{"min":25,"max":26,"text":"Fertile"},{"min":27,"max":28,"text":"Blocked"},{"min":29,"max":30,"text":"Ancient"},{"min":31,"max":32,"text":"Perilous"},{"min":33,"max":34,"text":"Hidden"},{"min":35,"max":36,"text":"Occupied"},{"min":37,"max":38,"text":"Rich"},{"min":39,"max":40,"text":"Big"},{"min":41,"max":42,"text":"Savage"},{"min":43,"max":44,"text":"Defended"},{"min":45,"max":46,"text":"Withered"},{"min":47,"max":48,"text":"Mystical"},{"min":49,"max":50,"text":"Inaccessible"},{"min":51,"max":52,"text":"Protected"},{"min":53,"max":54,"text":"Abandoned"},{"min":55,"max":56,"text":"Wide"},{"min":57,"max":58,"text":"Foul"},{"min":59,"max":60,"text":"Dead"},{"min":61,"max":62,"text":"Ruined"},{"min":63,"max":64,"text":"Barren"},{"min":65,"max":66,"text":"Cold"},{"min":67,"max":68,"text":"Blighted"},{"min":69,"max":70,"text":"Low"},{"min":71,"max":72,"text":"Beautiful"},{"min":73,"max":74,"text":"Abundant"},{"min":75,"max":76,"text":"Lush"},{"min":77,"max":78,"text":"Flooded"},{"min":79,"max":80,"text":"Empty"},{"min":81,"max":82,"text":"Strange"},{"min":83,"max":84,"text":"Corrupted"},{"min":85,"max":86,"text":"Peaceful"},{"min":87,"max":88,"text":"Forgotten"},{"min":89,"max":90,"text":"Expansive"},{"min":91,"max":92,"text":"Settled"},{"min":93,"max":94,"text":"Dense"},{"min":95,"max":96,"text":"Civilized"},{"min":97,"max":98,"text":"Desolate"},{"min":99,"max":100,"text":"Isolated"}]},"settlement_trouble":{"name":"Settlement Trouble","dice":"1d100","rows":[{"min":1,"max":2,"text":"Outsiders rejected"},{"min":3,"max":4,"text":"Dangerous discovery"},{"min":5,"max":6,"text":"Dreadful omens"},{"min":7,"max":8,"text":"Natural disaster"},{"min":9,"max":10,"text":"Old wounds reopened"},{"min":11,"max":12,"text":"Important object is lost"},{"min":13,"max":14,"text":"Someone is captured"},{"min":15,"max":16,"text":"Mysterious phenomenon"},{"min":17,"max":18,"text":"Revolt against a leader"},{"min":19,"max":20,"text":"Vengeful outcast"},{"min":21,"max":22,"text":"Rival settlement"},{"min":23,"max":24,"text":"Nature strikes back"},{"min":25,"max":26,"text":"Someone is missing"},{"min":27,"max":28,"text":"Production halts"},{"min":29,"max":30,"text":"Mysterious murders"},{"min":31,"max":32,"text":"Debt comes due"},{"min":33,"max":34,"text":"Unjust leadership"},{"min":35,"max":36,"text":"Disastrous accident"},{"min":37,"max":38,"text":"In league with the enemy"},{"min":39,"max":40,"text":"Raiders prey on the weak"},{"min":41,"max":42,"text":"Cursed past"},{"min":43,"max":44,"text":"An innocent is accused"},{"min":45,"max":46,"text":"Corrupted by dark magic"},{"min":47,"max":48,"text":"Isolated by brutal weather"},{"min":49,"max":50,"text":"Provisions are scarce"},{"min":51,"max":52,"text":"Sickness run amok"},{"min":53,"max":54,"text":"Allies become enemies"},{"min":55,"max":56,"text":"Attack is imminent"},{"min":57,"max":58,"text":"Lost caravan"},{"min":59,"max":60,"text":"Dark secret revealed"},{"min":61,"max":62,"text":"Urgent expedition"},{"min":63,"max":64,"text":"A leader falls"},{"min":65,"max":66,"text":"Families in conflict"},{"min":67,"max":68,"text":"Incompetent leadership"},{"min":69,"max":70,"text":"Reckless warmongering"},{"min":71,"max":72,"text":"Beast on the hunt"},{"min":73,"max":74,"text":"Betrayed from within"},{"min":75,"max":76,"text":"Broken truce"},{"min":77,"max":78,"text":"Wrathful haunt"},{"min":79,"max":80,"text":"Conflict with firstborn"},{"min":81,"max":82,"text":"Trade route blocked"},{"min":83,"max":84,"text":"In the crossfire"},{"min":85,"max":86,"text":"Stranger causes discord"},{"min":87,"max":88,"text":"Important event threatened"},{"min":89,"max":90,"text":"Dangerous tradition"},{"min":91,"max":100,"text":"Roll twice"}]},"settlement_prefix":{"name":"Prefix","dice":"1d100","rows":[{"min":1,"max":4,"text":"Bleak"},{"min":5,"max":8,"text":"Green"},{"min":9,"max":12,"text":"Wolf"},{"min":13,"max":16,"text":"Raven"},{"min":17,"max":20,"text":"Gray"},{"min":21,"max":24,"text":"Red"},{"min":25,"max":28,"text":"Axe"},{"min":29,"max":32,"text":"Great"},{"min":33,"max":36,"text":"Wood"},{"min":37,"max":40,"text":"Low"},{"min":41,"max":44,"text":"White"},{"min":45,"max":48,"text":"Storm"},{"min":49,"max":52,"text":"Black"},{"min":53,"max":56,"text":"Mourn"},{"min":57,"max":60,"text":"New"},{"min":61,"max":64,"text":"Stone"},{"min":65,"max":68,"text":"Grim"},{"min":69,"max":72,"text":"Lost"},{"min":73,"max":76,"text":"High"},{"min":77,"max":80,"text":"Rock"},{"min":81,"max":84,"text":"Shield"},{"min":85,"max":88,"text":"Sword"},{"min":89,"max":92,"text":"Frost"},{"min":93,"max":96,"text":"Thorn"},{"min":97,"max":100,"text":"Long"}]},"settlement_suffix":{"name":"Suffix","dice":"1d100","rows":[{"min":1,"max":4,"text":"moor"},{"min":5,"max":8,"text":"ford"},{"min":9,"max":12,"text":"crag"},{"min":13,"max":16,"text":"watch"},{"min":17,"max":20,"text":"hope"},{"min":21,"max":24,"text":"wood"},{"min":25,"max":28,"text":"ridge"},{"min":29,"max":32,"text":"stone"},{"min":33,"max":36,"text":"haven"},{"min":37,"max":40,"text":"fall(s)"},{"min":41,"max":44,"text":"river"},{"min":45,"max":48,"text":"field"},{"min":49,"max":52,"text":"hill"},{"min":53,"max":56,"text":"bridge"},{"min":57,"max":60,"text":"mark"},{"min":61,"max":64,"text":"cairn"},{"min":65,"max":68,"text":"land"},{"min":69,"max":72,"text":"hall"},{"min":73,"max":76,"text":"mount"},{"min":77,"max":80,"text":"rock"},{"min":81,"max":84,"text":"brook"},{"min":85,"max":88,"text":"barrow"},{"min":89,"max":92,"text":"stead"},{"min":93,"max":96,"text":"home"},{"min":97,"max":100,"text":"wick"}]}};
+
+    const log = document.getElementById('log');
+    const grid = document.getElementById('grid');
+    const select = document.getElementById('oracleSelect');
+    let first = true;
+
+    function logCard(spec) {
+      if (first) { log.innerHTML = ''; first = false; }
+      appendCard(log, spec);
+    }
+
+    function rollSingle(table, label, withRoll) {
+      const { roll, text } = rollTable(table);
+      logCard({ label, total: text, detailText: withRoll ? 'rolled ' + roll : null });
+      reportToNative(label + ': ' + text, text.slice(0, 4));
+    }
+
+    function rollPlotPrompt() {
+      const action = rollTable(PLOT_TABLES.action);
+      const theme = rollTable(PLOT_TABLES.theme);
+      const prompt = action.text + ' + ' + theme.text;
+      logCard({ label: 'Action + Theme', total: prompt, detailText: 'Action ' + action.roll + ', Theme ' + theme.roll });
+      reportToNative(prompt, action.text.slice(0, 4));
+    }
+
+    function rollIronlander() {
+      const a = rollTable(NAME_TABLES.ironlander_a);
+      const b = rollTable(NAME_TABLES.ironlander_b);
+      const name = a.text + ' ' + b.text;
+      logCard({ label: 'Ironlander', total: name });
+      reportToNative('Ironlander: ' + name, a.text.slice(0, 4));
+    }
+
+    function rollSettlementName() {
+      const prefix = rollTable(SETTLEMENT_TABLES.settlement_prefix);
+      const suffix = rollTable(SETTLEMENT_TABLES.settlement_suffix);
+      const name = prefix.text + suffix.text.toLowerCase();
+      logCard({ label: 'Settlement Name', total: name });
+      reportToNative('Settlement Name: ' + name, name.slice(0, 4));
+    }
+
+    // Each oracle in the picker: its own hint (shown in the empty log until
+    // the first roll of the session, whichever oracle that happens to be in)
+    // and its own set of grid tiles. The log itself is shared and never
+    // clears on switch - swapping oracles mid-session to build one scene is
+    // the whole point of consolidating these into one tool.
+    const ORACLES = {
+      ask: {
+        hint: 'Ask a yes/no question, then pick how likely it is.',
+        buildTiles: () => Object.keys(ASK_TABLES).map((key) => ({
+          label: ASK_TABLES[key].name,
+          handler: () => rollSingle(ASK_TABLES[key], ASK_TABLES[key].name, true),
+        })),
+      },
+      plot: {
+        hint: 'Roll for a discovery, event, goal, or plot twist.',
+        buildTiles: () => [
+          { label: 'Action + Theme', handler: rollPlotPrompt },
+          { label: 'Action', handler: () => rollSingle(PLOT_TABLES.action, 'Action', true) },
+          { label: 'Theme', handler: () => rollSingle(PLOT_TABLES.theme, 'Theme', true) },
+        ],
+      },
+      names: {
+        hint: 'Pick a lineage to name a character.',
+        buildTiles: () => [
+          { label: 'Ironlander', handler: rollIronlander },
+          { label: 'Elf', handler: () => rollSingle(NAME_TABLES.elf_names, 'Elf') },
+          { label: 'Giant', handler: () => rollSingle(NAME_TABLES.giant_names, 'Giant') },
+          { label: 'Varou', handler: () => rollSingle(NAME_TABLES.varou_names, 'Varou') },
+          { label: 'Troll', handler: () => rollSingle(NAME_TABLES.troll_names, 'Troll') },
+        ],
+      },
+      settlement: {
+        hint: 'Roll to sketch a region, place, or settlement.',
+        buildTiles: () => [
+          { label: 'Region', handler: () => rollSingle(SETTLEMENT_TABLES.region, 'Region') },
+          { label: 'Location', handler: () => rollSingle(SETTLEMENT_TABLES.location, 'Location') },
+          { label: 'Descriptor', handler: () => rollSingle(SETTLEMENT_TABLES.location_descriptor, 'Descriptor') },
+          { label: 'Trouble', handler: () => rollSingle(SETTLEMENT_TABLES.settlement_trouble, 'Trouble') },
+          { label: 'Settlement Name', handler: rollSettlementName },
+        ],
+      },
+    };
+
+    function renderOracle(key) {
+      grid.innerHTML = '';
+      initOracleGrid(grid, ORACLES[key].buildTiles());
+      if (first) {
+        log.innerHTML = '<div class="empty">' + ORACLES[key].hint + '</div>';
+      }
+    }
+
+    select.addEventListener('change', () => renderOracle(select.value));
+    renderOracle(select.value);
+  </script>
+</body>
+</html>
