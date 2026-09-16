@@ -23,13 +23,14 @@ import java.io.FileOutputStream
  * pushing a result onto the system clipboard so it can be pasted into whatever
  * note-taking app the overlay is floating over.
  *
- * Deliberately generic - not per-tool. None of the ported tools call this yet
- * (Custom Dice still uses its own localStorage - see assets/tools/custom-dice/
- * index.html); it's available for a tool to opt into.
+ * Deliberately generic - not per-tool. Each tool that needs durable state gets
+ * its own save/get pair and preference key here (see Custom Dice below); it's
+ * available for other tools to opt into the same way.
  */
 class GrimoireBridge(private val context: Context) {
     private val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     private val macrosKey = stringPreferencesKey("user_macros")
+    private val customDiceKey = stringPreferencesKey("user_custom_dice")
 
     @JavascriptInterface
     fun saveMacrosState(jsonString: String) {
@@ -39,6 +40,16 @@ class GrimoireBridge(private val context: Context) {
     @JavascriptInterface
     fun getMacrosState(): String {
         return runBlocking { context.appDataStore.data.first()[macrosKey] ?: "[]" }
+    }
+
+    @JavascriptInterface
+    fun saveDiceState(jsonString: String) {
+        runBlocking { context.appDataStore.edit { prefs -> prefs[customDiceKey] = jsonString } }
+    }
+
+    @JavascriptInterface
+    fun getDiceState(): String {
+        return runBlocking { context.appDataStore.data.first()[customDiceKey] ?: "[]" }
     }
 
     @JavascriptInterface
