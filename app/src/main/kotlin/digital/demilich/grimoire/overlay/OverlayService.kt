@@ -1330,6 +1330,20 @@ class OverlayService : Service() {
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT,
                     )
+                    // A WebView wrapped in Compose's AndroidView doesn't reliably
+                    // claim Android view focus on tap the way it would sitting in
+                    // a plain XML layout - Compose's own pointer-input dispatch
+                    // sits in front of it and never calls the View-level
+                    // touch-to-focus path WebView relies on. Without that view
+                    // focus, a tapped <input> inside the page can select itself
+                    // in the DOM but never actually gets an IME connection, so no
+                    // keyboard ever shows - request it explicitly here instead.
+                    isFocusable = true
+                    isFocusableInTouchMode = true
+                    setOnTouchListener { v, event ->
+                        if (event.action == MotionEvent.ACTION_DOWN) v.requestFocus()
+                        false
+                    }
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
                     webViewClient = object : WebViewClient() {
