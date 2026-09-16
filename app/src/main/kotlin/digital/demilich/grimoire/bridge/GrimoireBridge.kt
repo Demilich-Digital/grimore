@@ -9,13 +9,11 @@ import android.webkit.JavascriptInterface
 import androidx.core.content.FileProvider
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
+import digital.demilich.grimoire.data.appDataStore
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.io.FileOutputStream
-
-private val Context.dataStore by preferencesDataStore(name = "grimoire_settings")
 
 /**
  * Exposed to a tool's WebView as `window.AndroidBridge`. Covers the two things a
@@ -35,12 +33,12 @@ class GrimoireBridge(private val context: Context) {
 
     @JavascriptInterface
     fun saveMacrosState(jsonString: String) {
-        runBlocking { context.dataStore.edit { prefs -> prefs[macrosKey] = jsonString } }
+        runBlocking { context.appDataStore.edit { prefs -> prefs[macrosKey] = jsonString } }
     }
 
     @JavascriptInterface
     fun getMacrosState(): String {
-        return runBlocking { context.dataStore.data.first()[macrosKey] ?: "[]" }
+        return runBlocking { context.appDataStore.data.first()[macrosKey] ?: "[]" }
     }
 
     @JavascriptInterface

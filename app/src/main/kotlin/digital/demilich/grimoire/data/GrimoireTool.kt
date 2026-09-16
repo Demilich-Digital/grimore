@@ -3,16 +3,16 @@ package digital.demilich.grimoire.data
 import digital.demilich.grimoire.R
 
 /**
- * Registry of tools shown as tiles in the overlay's tool grid. Adding a tool is:
- * drop a self-contained page under assets/tools/<id>/, add an entry here with its
- * icon, description, and tags, and it appears in the grid automatically - no other
- * native code needed per tool.
+ * Registry of tools. Adding a tool is: drop a self-contained page under
+ * assets/tools/<id>/, add an entry here with its icon, description, tags, and
+ * credit, and it appears in both the bubble's recent-tools fan (once opened at
+ * least once) and the full searchable tool list automatically - no other native
+ * code needed per tool.
  *
- * `description` and `tags` aren't consumed anywhere yet - the grid
- * (OverlayService.ToolGrid) is just an icon grid with no search or filtering,
- * unlike bubble-dice's tool-select screen. Kept here anyway since they're cheap
- * to carry over and are exactly what a future search/filter UI would match
- * against.
+ * `description` and `tags` drive OverlayService.ToolList's search box and tag
+ * filter chips; `credit` is shown on each row there too - both the list and the
+ * fan-out are documented in NOTICE.md as one source of truth for licensing, but
+ * this is what a user actually sees at the point of use.
  */
 enum class GrimoireTool(
     val id: String,
@@ -21,6 +21,10 @@ enum class GrimoireTool(
     val description: String,
     val tags: List<String>,
     val iconRes: Int,
+    // Attribution for where a tool's content comes from - "Demilich Digital"
+    // for original in-house tools, or the actual source/license for ported
+    // content (see NOTICE.md for the full license text this summarizes).
+    val credit: String,
     // Real tools appear in the tool grid; an unlisted one (like DEMO below) only
     // opens via a direct call, e.g. a low-key link elsewhere in the UI - it's
     // still a fully working tool.
@@ -33,6 +37,7 @@ enum class GrimoireTool(
         description = "Roll tabletop dice notation - 2d6+3, advantage/disadvantage, drop-lowest, and more.",
         tags = listOf("games", "tabletop", "random"),
         iconRes = R.drawable.ic_dice,
+        credit = "Demilich Digital",
     ),
     CALCULATOR(
         id = "calculator",
@@ -41,6 +46,7 @@ enum class GrimoireTool(
         description = "A simple calculator keypad for quick arithmetic.",
         tags = listOf("utility", "math"),
         iconRes = R.drawable.ic_calculator,
+        credit = "Demilich Digital",
     ),
     DEMO(
         id = "demo",
@@ -49,6 +55,7 @@ enum class GrimoireTool(
         description = "A quick walkthrough of collapsing, moving, and dismissing the overlay.",
         tags = listOf("help"),
         iconRes = R.drawable.ic_demo,
+        credit = "Demilich Digital",
         unlisted = true,
     ),
     ASK_THE_ORACLE(
@@ -58,6 +65,7 @@ enum class GrimoireTool(
         description = "Yes/no answers at five levels of likelihood, from Ironsworn.",
         tags = listOf("oracle", "ironsworn", "tabletop", "random", "yes-no"),
         iconRes = R.drawable.ic_oracle,
+        credit = "Ironsworn by Shawn Tomkin • CC BY 4.0",
     ),
     PLOT_AND_TWIST(
         id = "plot-and-twist",
@@ -66,6 +74,7 @@ enum class GrimoireTool(
         description = "Combine an Action and a Theme into a prompt for a discovery, event, or twist, from Ironsworn.",
         tags = listOf("oracle", "ironsworn", "tabletop", "random", "prompts"),
         iconRes = R.drawable.ic_plot_twist,
+        credit = "Ironsworn by Shawn Tomkin • CC BY 4.0",
     ),
     NAME_GENERATOR(
         id = "name-generator",
@@ -74,6 +83,7 @@ enum class GrimoireTool(
         description = "Names for Ironlanders, elves, giants, varou, and trolls, from Ironsworn.",
         tags = listOf("oracle", "ironsworn", "tabletop", "random", "names"),
         iconRes = R.drawable.ic_name_generator,
+        credit = "Ironsworn by Shawn Tomkin • CC BY 4.0",
     ),
     SETTLEMENT_AND_PLACE(
         id = "settlement-and-place",
@@ -82,6 +92,7 @@ enum class GrimoireTool(
         description = "Sketch a region, location, settlement trouble, or settlement name, from Ironsworn.",
         tags = listOf("oracle", "ironsworn", "tabletop", "random", "worldbuilding"),
         iconRes = R.drawable.ic_settlement,
+        credit = "Ironsworn by Shawn Tomkin • CC BY 4.0",
     ),
     CUSTOM_DICE(
         id = "custom-dice",
@@ -90,6 +101,7 @@ enum class GrimoireTool(
         description = "Save your own dice - d13, d3, whatever your game needs - and build rolls with them.",
         tags = listOf("games", "tabletop", "random", "custom"),
         iconRes = R.drawable.ic_custom_dice,
+        credit = "Demilich Digital",
     ),
     ;
 
