@@ -14,12 +14,17 @@
      panel is a draggable, freely-positioned overlay window rather than a
      normal in-flow page. Building the menu as plain positioned HTML sidesteps
      that entirely. Not promoted to shared/theme.css since this is the only
-     tool with a dropdown. */
+     tool with a dropdown.
+
+     Lives above #log, not between it and #grid - the menu opens downward
+     (see .oracle-menu below), and #log/#grid don't scroll far enough past
+     the panel's fixed height to reveal a menu that opens past the bottom;
+     anchored at the top there's always panel height below it to open into. */
   .oracle-picker {
     position: relative;
     flex: 0 0 auto;
-    padding: 10px 12px 0;
-    border-top: 1px solid var(--line);
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
   }
   .oracle-trigger {
     width: 100%;
@@ -88,7 +93,6 @@
     </div>
   </noscript>
 
-  <div id="log"></div>
   <div class="oracle-picker">
     <button id="oracleTrigger" class="oracle-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
       <span id="oracleTriggerLabel">Ask the Oracle</span>
@@ -101,6 +105,7 @@
       <button type="button" class="oracle-menu-item" data-key="settlement" role="option" aria-selected="false">Settlement &amp; Place</button>
     </div>
   </div>
+  <div id="log"></div>
   <div id="grid"></div>
 
   <script src="../shared/oracle.js"></script>
