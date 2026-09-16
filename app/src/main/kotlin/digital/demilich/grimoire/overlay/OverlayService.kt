@@ -880,7 +880,18 @@ class OverlayService : Service() {
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            // FLAG_NOT_TOUCH_MODAL is requested explicitly and unconditionally
+            // here, never toggled alongside FLAG_NOT_FOCUSABLE below - it's
+            // otherwise only granted as an undocumented-in-code side effect of
+            // FLAG_NOT_FOCUSABLE itself (see the platform docs on that flag:
+            // "This flag will also enable FLAG_NOT_TOUCH_MODAL whether or not
+            // that is explicitly set"), so the moment a tap clears
+            // FLAG_NOT_FOCUSABLE to let the panel take IME focus, the window
+            // would otherwise silently go touch-modal too and start eating
+            // touches meant for the app underneath it - the opposite of
+            // "non-modal" this panel is supposed to be.
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT,
         ).apply {
