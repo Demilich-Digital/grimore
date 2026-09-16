@@ -11,6 +11,7 @@ import android.os.IBinder
 import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
+import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -21,6 +22,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.FrameLayout
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -275,7 +277,7 @@ class OverlayService : Service() {
 
     private var bubbleView: ComposeView? = null
     private var fanView: ComposeView? = null
-    private var panelView: ComposeView? = null
+    private var panelView: View? = null
     private var dismissZoneView: ComposeView? = null
 
     private val bubbleLifecycleOwner = ComposeOverlayLifecycleOwner()
@@ -799,9 +801,9 @@ class OverlayService : Service() {
             clampToScreen(x, panelWidthPx, screenWidthPx) to clampToScreen(y, panelHeightPx, screenHeightPx)
         } ?: ((screenWidthPx - panelWidthPx) / 2 to (screenHeightPx - panelHeightPx) / 2)
 
-        val view = ComposeView(this)
-        panelLifecycleOwner.attachTo(view)
-        view.setContent {
+        val composeView = ComposeView(this)
+        panelLifecycleOwner.attachTo(composeView)
+        composeView.setContent {
             GrimoireTheme {
                 PanelContent(
                     tool = selectedTool,
@@ -821,35 +823,50 @@ class OverlayService : Service() {
         // WebView field) their ability to take focus, since a non-focusable
         // window can't hold it - so it's toggled on demand instead of fixed
         // for the panel's whole lifetime:
-        // - Any touch landing in the panel (there's nowhere else this
-        //   listener could fire from - it's on the panel's own root view) may
-        //   be aimed at one of those inputs, so it clears FLAG_NOT_FOCUSABLE
-        //   in case. The flag flip races the very touch that triggered it -
-        //   WindowManager grants window focus based on the focusable flag at
-        //   dispatch time, and updateViewLayout() here only lands just after
-        //   - so the first tap into an unfocused panel only wakes it up; the
-        //   input itself needs a second tap to actually take focus. Accepted
-        //   trade-off: the common direction (going back to typing in the app
-        //   underneath, below) needs no extra tap at all.
+        // - Any touch landing in the panel may be aimed at one of those
+        //   inputs, so it clears FLAG_NOT_FOCUSABLE in case. This has to be a
+        //   dispatchTouchEvent() override on a plain wrapper View, not a
+        //   View.OnTouchListener on the ComposeView (which was tried first and
+        //   didn't work): a ViewGroup only runs its own OnTouchListener when
+        //   none of its children end up consuming the touch, and both the
+        //   WebView and Compose's own interactive elements (buttons, the
+        //   search field) always consume ACTION_DOWN to track the gesture -
+        //   so a listener on the ComposeView would never fire for a tap on
+        //   the very inputs it exists to unlock. Overriding
+        //   dispatchTouchEvent() on a FrameLayout wrapping the ComposeView
+        //   runs before that consumption decision is even made, so it always
+        //   sees the touch. The flag flip races the very touch that
+        //   triggered it - WindowManager grants window focus based on the
+        //   focusable flag at dispatch time, and updateViewLayout() here only
+        //   lands just after - so the first tap into an unfocused panel only
+        //   wakes it up; the input itself needs a second tap to actually take
+        //   focus. Accepted trade-off: the common direction (going back to
+        //   typing in the app underneath, below) needs no extra tap at all.
         // - Losing window focus (onWindowFocusChangeListener below) means
         //   something else - the app underneath, the bubble, anywhere else -
         //   just took focus instead, so nothing in the panel still needs it:
         //   flip FLAG_NOT_FOCUSABLE back on immediately, so that same tap
         //   finishes handing focus to whatever the user actually tapped, with
         //   no extra step on their side.
-        view.setOnTouchListener { _, event ->
-            if (event.actionMasked == MotionEvent.ACTION_DOWN &&
-                panelParams.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE != 0
-            ) {
-                panelParams.flags = panelParams.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
-                windowManager.updateViewLayout(view, panelParams)
+        val rootView = object : FrameLayout(this) {
+            override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+                if (ev.actionMasked == MotionEvent.ACTION_DOWN &&
+                    panelParams.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE != 0
+                ) {
+                    panelParams.flags = panelParams.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+                    windowManager.updateViewLayout(this, panelParams)
+                }
+                return super.dispatchTouchEvent(ev)
             }
-            false
         }
-        view.viewTreeObserver.addOnWindowFocusChangeListener { hasFocus ->
+        rootView.addView(
+            composeView,
+            FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT),
+        )
+        rootView.viewTreeObserver.addOnWindowFocusChangeListener { hasFocus ->
             if (!hasFocus && panelParams.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE == 0) {
                 panelParams.flags = panelParams.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                windowManager.updateViewLayout(view, panelParams)
+                windowManager.updateViewLayout(rootView, panelParams)
             }
         }
         panelParams = WindowManager.LayoutParams(
@@ -864,9 +881,9 @@ class OverlayService : Service() {
             x = initialX
             y = initialY
         }
-        windowManager.addView(view, panelParams)
+        windowManager.addView(rootView, panelParams)
         panelLifecycleOwner.onWindowAdded()
-        panelView = view
+        panelView = rootView
     }
 
     private fun hidePanel() {
