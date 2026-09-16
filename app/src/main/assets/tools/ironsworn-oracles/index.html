@@ -8,16 +8,25 @@
 <link rel="stylesheet" href="../shared/theme.css">
 <style>
   #grid { grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); }
-  /* Oracle picker: a themed pill select, same visual language as .text-input
-     (shared/theme.css) but not promoted there since this is the only tool
-     with a dropdown. */
+  /* Oracle picker: a custom pill trigger + dropdown list, not a native
+     <select> - Android WebView positions a native select's popup using the
+     page's layout coordinates, which land far from the trigger once this
+     panel is a draggable, freely-positioned overlay window rather than a
+     normal in-flow page. Building the menu as plain positioned HTML sidesteps
+     that entirely. Not promoted to shared/theme.css since this is the only
+     tool with a dropdown. */
   .oracle-picker {
+    position: relative;
     flex: 0 0 auto;
     padding: 10px 12px 0;
     border-top: 1px solid var(--line);
   }
-  #oracleSelect {
+  .oracle-trigger {
     width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     background: var(--card);
     border: 1.5px solid var(--line);
     border-radius: 999px;
@@ -26,16 +35,47 @@
     font-weight: 600;
     font-size: 0.9rem;
     color: var(--text);
-    appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236f6285' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 14px center;
-    background-size: 16px;
+    cursor: pointer;
   }
-  #oracleSelect:focus {
+  .oracle-trigger:focus {
     outline: none;
     border-color: var(--gem-d12);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--gem-d12) 25%, transparent);
+  }
+  .oracle-chevron { width: 16px; height: 16px; color: var(--muted); flex: 0 0 auto; transition: transform 160ms ease; }
+  .oracle-trigger[aria-expanded="true"] .oracle-chevron { transform: rotate(180deg); }
+  .oracle-menu {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    top: 100%;
+    margin-top: 6px;
+    background: var(--card);
+    border: 1.5px solid var(--line);
+    border-radius: 14px;
+    padding: 6px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+    z-index: 5;
+  }
+  .oracle-menu[hidden] { display: none; }
+  .oracle-menu-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-family: "Figtree", sans-serif;
+    font-weight: 600;
+    font-size: 0.88rem;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .oracle-menu-item[aria-selected="true"] { color: var(--gem-d12); }
+  .oracle-menu-item:hover, .oracle-menu-item:focus {
+    outline: none;
+    background: color-mix(in srgb, var(--gem-d12) 14%, var(--card));
   }
 </style>
 </head>
@@ -50,12 +90,16 @@
 
   <div id="log"></div>
   <div class="oracle-picker">
-    <select id="oracleSelect" aria-label="Oracle">
-      <option value="ask">Ask the Oracle</option>
-      <option value="plot">Plot &amp; Twist</option>
-      <option value="names">Name Generator</option>
-      <option value="settlement">Settlement &amp; Place</option>
-    </select>
+    <button id="oracleTrigger" class="oracle-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
+      <span id="oracleTriggerLabel">Ask the Oracle</span>
+      <svg class="oracle-chevron" viewBox="0 0 24 24" fill="none"><polyline points="6 9 12 15 18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div id="oracleMenu" class="oracle-menu" role="listbox" aria-label="Oracle" hidden>
+      <button type="button" class="oracle-menu-item" data-key="ask" role="option" aria-selected="true">Ask the Oracle</button>
+      <button type="button" class="oracle-menu-item" data-key="plot" role="option" aria-selected="false">Plot &amp; Twist</button>
+      <button type="button" class="oracle-menu-item" data-key="names" role="option" aria-selected="false">Name Generator</button>
+      <button type="button" class="oracle-menu-item" data-key="settlement" role="option" aria-selected="false">Settlement &amp; Place</button>
+    </div>
   </div>
   <div id="grid"></div>
 
@@ -82,7 +126,6 @@
 
     const log = document.getElementById('log');
     const grid = document.getElementById('grid');
-    const select = document.getElementById('oracleSelect');
     let first = true;
 
     function logCard(spec) {
@@ -90,9 +133,13 @@
       appendCard(log, spec);
     }
 
+    // label identifies which table was rolled - used for the native report
+    // (and, historically, the log card), but dropped from the card itself:
+    // with four oracles' worth of table names in one shared log, it was
+    // eating more width than the roll result it was labeling.
     function rollSingle(table, label, withRoll) {
       const { roll, text } = rollTable(table);
-      logCard({ label, total: text, detailText: withRoll ? 'rolled ' + roll : null });
+      logCard({ total: text, detailText: withRoll ? 'rolled ' + roll : null });
       reportToNative(label + ': ' + text, text.slice(0, 4));
     }
 
@@ -100,7 +147,7 @@
       const action = rollTable(PLOT_TABLES.action);
       const theme = rollTable(PLOT_TABLES.theme);
       const prompt = action.text + ' + ' + theme.text;
-      logCard({ label: 'Action + Theme', total: prompt, detailText: 'Action ' + action.roll + ', Theme ' + theme.roll });
+      logCard({ total: prompt, detailText: 'Action ' + action.roll + ', Theme ' + theme.roll });
       reportToNative(prompt, action.text.slice(0, 4));
     }
 
@@ -108,7 +155,7 @@
       const a = rollTable(NAME_TABLES.ironlander_a);
       const b = rollTable(NAME_TABLES.ironlander_b);
       const name = a.text + ' ' + b.text;
-      logCard({ label: 'Ironlander', total: name });
+      logCard({ total: name });
       reportToNative('Ironlander: ' + name, a.text.slice(0, 4));
     }
 
@@ -116,7 +163,7 @@
       const prefix = rollTable(SETTLEMENT_TABLES.settlement_prefix);
       const suffix = rollTable(SETTLEMENT_TABLES.settlement_suffix);
       const name = prefix.text + suffix.text.toLowerCase();
-      logCard({ label: 'Settlement Name', total: name });
+      logCard({ total: name });
       reportToNative('Settlement Name: ' + name, name.slice(0, 4));
     }
 
@@ -127,6 +174,7 @@
     // the whole point of consolidating these into one tool.
     const ORACLES = {
       ask: {
+        label: 'Ask the Oracle',
         hint: 'Ask a yes/no question, then pick how likely it is.',
         buildTiles: () => Object.keys(ASK_TABLES).map((key) => ({
           label: ASK_TABLES[key].name,
@@ -134,6 +182,7 @@
         })),
       },
       plot: {
+        label: 'Plot & Twist',
         hint: 'Roll for a discovery, event, goal, or plot twist.',
         buildTiles: () => [
           { label: 'Action + Theme', handler: rollPlotPrompt },
@@ -142,6 +191,7 @@
         ],
       },
       names: {
+        label: 'Name Generator',
         hint: 'Pick a lineage to name a character.',
         buildTiles: () => [
           { label: 'Ironlander', handler: rollIronlander },
@@ -152,6 +202,7 @@
         ],
       },
       settlement: {
+        label: 'Settlement & Place',
         hint: 'Roll to sketch a region, place, or settlement.',
         buildTiles: () => [
           { label: 'Region', handler: () => rollSingle(SETTLEMENT_TABLES.region, 'Region') },
@@ -171,8 +222,45 @@
       }
     }
 
-    select.addEventListener('change', () => renderOracle(select.value));
-    renderOracle(select.value);
+    // ---- oracle picker: trigger + menu (see the .oracle-picker CSS comment
+    // for why this isn't a native <select>) ----
+
+    const oracleTrigger = document.getElementById('oracleTrigger');
+    const oracleTriggerLabel = document.getElementById('oracleTriggerLabel');
+    const oracleMenu = document.getElementById('oracleMenu');
+
+    function openOracleMenu() {
+      oracleMenu.hidden = false;
+      oracleTrigger.setAttribute('aria-expanded', 'true');
+      document.addEventListener('click', handleOracleMenuOutsideClick, { capture: true });
+    }
+    function closeOracleMenu() {
+      oracleMenu.hidden = true;
+      oracleTrigger.setAttribute('aria-expanded', 'false');
+      document.removeEventListener('click', handleOracleMenuOutsideClick, { capture: true });
+    }
+    function handleOracleMenuOutsideClick(e) {
+      if (!oracleMenu.contains(e.target) && e.target !== oracleTrigger) closeOracleMenu();
+    }
+    oracleTrigger.addEventListener('click', () => {
+      if (oracleMenu.hidden) openOracleMenu(); else closeOracleMenu();
+    });
+
+    function selectOracle(key) {
+      oracleTriggerLabel.textContent = ORACLES[key].label;
+      oracleMenu.querySelectorAll('.oracle-menu-item').forEach((item) => {
+        item.setAttribute('aria-selected', item.dataset.key === key ? 'true' : 'false');
+      });
+      renderOracle(key);
+    }
+    oracleMenu.querySelectorAll('.oracle-menu-item').forEach((item) => {
+      item.addEventListener('click', () => {
+        selectOracle(item.dataset.key);
+        closeOracleMenu();
+      });
+    });
+
+    selectOracle('ask');
   </script>
 </body>
 </html>
