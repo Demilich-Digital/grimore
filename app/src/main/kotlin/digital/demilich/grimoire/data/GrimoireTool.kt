@@ -8,8 +8,11 @@ import digital.demilich.grimoire.R
  * icon, description, and tags, and it appears in the grid automatically - no other
  * native code needed per tool.
  *
- * `description` and `tags` are exactly what the grid's search box and tag filters
- * (if any) would match against.
+ * `description` and `tags` aren't consumed anywhere yet - the grid
+ * (OverlayService.ToolGrid) is just an icon grid with no search or filtering,
+ * unlike bubble-dice's tool-select screen. Kept here anyway since they're cheap
+ * to carry over and are exactly what a future search/filter UI would match
+ * against.
  */
 enum class GrimoireTool(
     val id: String,

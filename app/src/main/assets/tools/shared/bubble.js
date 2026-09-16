@@ -3,12 +3,13 @@
 // registered before anything else has a chance to run or throw.
 
 (function () {
-  // BubbleActivity passes the real system theme two ways: this query param
-  // (read before first paint, so there's no flash of the wrong theme) and, if
-  // the system theme flips while the bubble is already open, a live
-  // evaluateJavascript call that sets the same attribute. Either way it
-  // overrides prefers-color-scheme in theme.css, which stays as the fallback
-  // for previewing a page outside the app.
+  // The overlay's WebView (see OverlayService.kt's ToolWebView) passes the
+  // real system theme two ways: this query param (read before first paint,
+  // so there's no flash of the wrong theme) and, if the system theme flips
+  // while the panel is already open, a live evaluateJavascript call that
+  // sets the same attribute. Either way it overrides prefers-color-scheme in
+  // theme.css, which stays as the fallback for previewing a page outside the
+  // app.
   var theme = new URLSearchParams(location.search).get('theme');
   if (theme === 'dark' || theme === 'light') {
     document.documentElement.setAttribute('data-theme', theme);
@@ -27,10 +28,13 @@ window.onerror = function (message, source, lineno, colno) {
   return true;
 };
 
-// BubbleBridge is injected by BubbleActivity; the two updates it drives (the
-// bubble's floating badge icon, the shade notification's history) are the
-// only things a page can't do for itself. Guarded so a page still works if
-// previewed outside the WebView.
+// Carried over from the notification-bubble version of this app, where
+// BubbleBridge.reportResult updated the floating bubble's badge icon and a
+// shade notification's history - neither exists in this overlay-based
+// version (no per-tool notifications, no badge). Nothing registers
+// window.BubbleBridge here, so this is currently an inert no-op; left in
+// place (and guarded, so it's harmless either way) rather than ripped out of
+// every tool page, in case a native badge bridge comes back later.
 function reportToNative(displayText, badgeText) {
   if (window.BubbleBridge && window.BubbleBridge.reportResult) {
     window.BubbleBridge.reportResult(displayText, badgeText == null ? null : String(badgeText));

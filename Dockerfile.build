@@ -1,0 +1,33 @@
+FROM eclipse-temurin:17-jdk-jammy
+
+ENV ANDROID_HOME=/opt/android-sdk
+ENV GRADLE_HOME=/opt/gradle-8.13
+ENV PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/build-tools/36.0.0:$GRADLE_HOME/bin
+
+RUN apt-get update -q && \
+    apt-get install -y -q --no-install-recommends wget unzip && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Gradle 8.13 (required by AGP 8.13, which is what added compileSdk/
+# targetSdk 36 support - see gradle/libs.versions.toml).
+RUN wget -q https://services.gradle.org/distributions/gradle-8.13-bin.zip -O /tmp/gradle.zip && \
+    unzip -q /tmp/gradle.zip -d /opt && \
+    rm /tmp/gradle.zip
+
+# Install Android command-line tools
+RUN mkdir -p $ANDROID_HOME/cmdline-tools && \
+    wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O /tmp/cmdlinetools.zip && \
+    unzip -q /tmp/cmdlinetools.zip -d /tmp && \
+    mv /tmp/cmdline-tools $ANDROID_HOME/cmdline-tools/latest && \
+    rm /tmp/cmdlinetools.zip
+
+# Accept licenses and install SDK components
+RUN yes | sdkmanager --licenses > /dev/null && \
+    sdkmanager \
+        "platform-tools" \
+        "platforms;android-36" \
+        "build-tools;36.0.0" \
+        "platforms;android-35" \
+        "build-tools;35.0.0"
+
+WORKDIR /project

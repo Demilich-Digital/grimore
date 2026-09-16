@@ -26,8 +26,8 @@ private val Context.dataStore by preferencesDataStore(name = "grimoire_settings"
  * note-taking app the overlay is floating over.
  *
  * Deliberately generic - not per-tool. None of the ported tools call this yet
- * (Custom Dice still uses its own localStorage, per NOTICE.md's fonts section);
- * it's available for a tool to opt into.
+ * (Custom Dice still uses its own localStorage - see assets/tools/custom-dice/
+ * index.html); it's available for a tool to opt into.
  */
 class GrimoireBridge(private val context: Context) {
     private val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager

@@ -8,7 +8,6 @@ import android.content.pm.ApplicationInfo
 import android.content.Intent
 import android.graphics.PixelFormat
 import android.os.IBinder
-import android.util.DisplayMetrics
 import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
@@ -81,6 +80,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 private const val TAG = "OverlayService"
+
+// Shared between the Compose sizing below and the dismiss-zone hit test in
+// isBubbleOverDismissZone() - kept as named dp constants (rather than each
+// place hardcoding its own numbers) so the hit-test math can't silently drift
+// out of sync with what's actually drawn on screen.
+private const val BUBBLE_SIZE_DP = 56
+private const val DISMISS_ZONE_SIZE_DP = 72
+private const val DISMISS_ZONE_HIGHLIGHTED_SIZE_DP = 96
+private const val DISMISS_ZONE_BOTTOM_PADDING_DP = 32
 
 /**
  * Owns the whole floating overlay: a small draggable bubble (always present while
@@ -229,12 +237,17 @@ class OverlayService : Service() {
         isOverDismissZone = isBubbleOverDismissZone()
     }
 
+    // bubbleParams.x/y are raw pixels (WindowManager.LayoutParams doesn't know
+    // about dp), so the Compose sizes above have to be converted through the
+    // screen density before comparing against them - comparing the dp literals
+    // directly against bubbleParams.y would only happen to work on an exact
+    // 1x-density screen and silently misjudge the hit zone on everything else.
     private fun isBubbleOverDismissZone(): Boolean {
-        val metrics = DisplayMetrics()
-        @Suppress("DEPRECATION")
-        windowManager.defaultDisplay.getMetrics(metrics)
-        val bubbleCenterY = bubbleParams.y + 60
-        return bubbleCenterY > metrics.heightPixels - 220
+        val density = resources.displayMetrics.density
+        val bubbleCenterY = bubbleParams.y + (BUBBLE_SIZE_DP / 2f) * density
+        val dismissZoneTopY = resources.displayMetrics.heightPixels -
+            (DISMISS_ZONE_HIGHLIGHTED_SIZE_DP + DISMISS_ZONE_BOTTOM_PADDING_DP) * density
+        return bubbleCenterY > dismissZoneTopY
     }
 
     private fun endDrag() {
@@ -258,6 +271,10 @@ class OverlayService : Service() {
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            // FLAG_NOT_TOUCHABLE: this window is purely a visual target, never a
+            // touch target - the bubble decides whether it's "over" this zone
+            // itself (isBubbleOverDismissZone), so without this flag the zone
+            // would sit on top of the bubble and steal its drag/tap events.
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
@@ -299,6 +316,9 @@ class OverlayService : Service() {
                 )
             }
         }
+        // Tap-outside-to-collapse: ACTION_OUTSIDE is only ever delivered at all
+        // if FLAG_WATCH_OUTSIDE_TOUCH is set on this window (an easy thing to
+        // miss - without it, this listener would just silently never fire).
         view.setOnTouchListener { _, event ->
             if (event.action == MotionEvent.ACTION_OUTSIDE) {
                 hidePanel()
@@ -360,7 +380,7 @@ class OverlayService : Service() {
     ) {
         Box(
             modifier = Modifier
-                .size(56.dp)
+                .size(BUBBLE_SIZE_DP.dp)
                 .clip(CircleShape)
                 .background(
                     if (isOverDismissZone) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
@@ -409,8 +429,8 @@ class OverlayService : Service() {
     private fun DismissZone(highlighted: Boolean) {
         Box(
             modifier = Modifier
-                .padding(bottom = 32.dp)
-                .size(if (highlighted) 96.dp else 72.dp)
+                .padding(bottom = DISMISS_ZONE_BOTTOM_PADDING_DP.dp)
+                .size(if (highlighted) DISMISS_ZONE_HIGHLIGHTED_SIZE_DP.dp else DISMISS_ZONE_SIZE_DP.dp)
                 .clip(CircleShape)
                 .background(
                     if (highlighted) {
@@ -525,6 +545,12 @@ class OverlayService : Service() {
         }
     }
 
+    /**
+     * Loads a tool's self-contained page from app/src/main/assets/ via
+     * WebViewAssetLoader (serves it from a virtual https origin rather than
+     * file://, avoiding the CORS and mixed-content restrictions plain file://
+     * URLs run into - Google's recommended way to load bundled local content).
+     */
     @SuppressLint("SetJavaScriptEnabled")
     @Composable
     private fun ToolWebView(tool: GrimoireTool) {
