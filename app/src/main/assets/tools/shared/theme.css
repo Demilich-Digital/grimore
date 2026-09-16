@@ -1,0 +1,347 @@
+/* Shared visual language ("Tumble") for every bubble tool page - fonts, color
+   tokens, and the common components (result cards, tile grids, action button,
+   input row, modal) that most tools are built from. Loaded from a local file
+   under assets/, served same-origin by WebViewAssetLoader - not a network
+   fetch, so this stays as offline-safe as inlining it into every page would
+   be, without the hand-copy-and-keep-in-sync tax.
+
+   A tool's own <style> block should only hold what's actually specific to
+   that tool - layout quirks, one-off components - not a re-declaration of
+   anything here. */
+
+@font-face {
+  font-family: 'Figtree';
+  src: url('fonts/figtree-latin.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Unbounded';
+  src: url('fonts/unbounded-700-latin.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  src: url('fonts/ibm-plex-mono-400-latin.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --bg: #f3effc;
+  --card: #ffffff;
+  --text: #201333;
+  --muted: #6f6285;
+  --line: rgba(32, 19, 51, 0.1);
+  --error: #d63e46;
+  --gem-d4: #1fae8e;
+  --gem-d6: #ff6a53;
+  --gem-d8: #ffb238;
+  --gem-d10: #2f9bea;
+  --gem-d12: #9a6bff;
+  --gem-d20: #ff4f9a;
+  --gem-d100: #e0ab1f;
+  --backdrop: rgba(21, 12, 38, 0.5);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #150c26;
+    --card: #201333;
+    --text: #f3effc;
+    --muted: #b6a9d6;
+    --line: rgba(243, 239, 252, 0.12);
+    --error: #ff6b6b;
+    --backdrop: rgba(0, 0, 0, 0.6);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #150c26;
+  --card: #201333;
+  --text: #f3effc;
+  --muted: #b6a9d6;
+  --line: rgba(243, 239, 252, 0.12);
+  --error: #ff6b6b;
+  --backdrop: rgba(0, 0, 0, 0.6);
+}
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Figtree", system-ui, sans-serif;
+  overflow: hidden;
+}
+body { display: flex; flex-direction: column; }
+
+/* ---- result log: a scrolling column of cards, newest at the bottom ---- */
+
+#log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.empty { color: var(--muted); padding: 10px 4px; font-size: 0.85rem; }
+.card {
+  background: var(--card);
+  border-radius: 14px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-left: 4px solid var(--gem, var(--gem-d12));
+}
+.card.enter { animation: popIn 380ms cubic-bezier(.34,1.56,.64,1); }
+@keyframes popIn {
+  0% { opacity: 0; transform: scale(0.55) translateY(6px); }
+  65% { opacity: 1; transform: scale(1.06) translateY(0); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+.card-total {
+  font-family: "Unbounded", sans-serif;
+  font-weight: 700;
+  font-size: 1.4rem;
+  color: var(--gem, var(--gem-d12));
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+.card-meta { min-width: 0; }
+.card-label {
+  font-family: "Figtree", sans-serif;
+  font-weight: 600;
+  font-size: 0.82rem;
+  word-break: break-word;
+}
+.card-detail { margin-top: 4px; }
+.pip {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.65rem;
+  background: var(--bg);
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 1px 5px;
+  word-break: break-word;
+}
+.card.error { border-left-color: var(--error); }
+.card.error .card-label { color: var(--error); }
+
+/* ---- tile grid: a wrap of tap targets, each optionally accented by --gem ---- */
+
+#grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  gap: 8px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--line);
+}
+button.tile {
+  --gem: var(--gem-d12);
+  position: relative;
+  background: color-mix(in srgb, var(--gem) 14%, var(--card));
+  border: 1.5px solid color-mix(in srgb, var(--gem) 45%, transparent);
+  border-radius: 12px;
+  color: var(--text);
+  font-family: "Figtree", sans-serif;
+  font-weight: 700;
+  font-size: clamp(11px, 3.4vw, 13px);
+  padding: 9px 4px 7px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+button.tile svg { width: 19px; height: 19px; color: var(--gem); }
+button.tile svg.spin { animation: tumble 520ms cubic-bezier(.3,.2,.2,1); }
+@keyframes tumble {
+  0% { transform: rotate(0deg) scale(1); }
+  30% { transform: rotate(160deg) scale(1.2); }
+  60% { transform: rotate(300deg) scale(0.9); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+button.tile.glow { animation: glowPulse 520ms ease-out; }
+@keyframes glowPulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--gem) 60%, transparent); }
+  55% { box-shadow: 0 0 16px 3px color-mix(in srgb, var(--gem) 55%, transparent); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+button:active { opacity: 0.85; }
+
+/* ---- primary action button (e.g. "Roll") ---- */
+
+.action-btn {
+  flex: 0 0 auto;
+  margin: 8px 12px 2px;
+  height: 50px;
+  border-radius: 14px;
+  border: none;
+  background: var(--gem-d12);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: "Unbounded", sans-serif;
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+.action-btn svg { width: 20px; height: 20px; color: #ffffff; }
+.action-btn:active { opacity: 0.88; }
+.action-btn svg.spin { animation: tumble 520ms cubic-bezier(.3,.2,.2,1); }
+
+/* ---- text input row (a pill input plus small icon buttons) ---- */
+
+.input-row {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px 0;
+  border-top: 1px solid var(--line);
+}
+.text-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-family: "Figtree", sans-serif;
+  font-size: 0.9rem;
+  color: var(--text);
+  appearance: none;
+}
+.text-input:focus {
+  outline: none;
+  border-color: var(--gem-d12);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gem-d12) 25%, transparent);
+}
+.text-input::placeholder { color: var(--muted); }
+.icon-btn {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.icon-btn svg { width: 18px; height: 18px; }
+.icon-btn.empty { opacity: 0.25; pointer-events: none; }
+
+/* ---- modal ---- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--backdrop);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 10;
+}
+.modal-backdrop[hidden] { display: none; }
+.modal {
+  width: 100%;
+  max-width: 280px;
+  max-height: 80vh;
+  background: var(--card);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+}
+.modal-title {
+  margin: 0 0 12px;
+  font-family: "Unbounded", sans-serif;
+  font-weight: 700;
+  font-size: 0.95rem;
+  flex: 0 0 auto;
+}
+.modal-body {
+  overflow-y: auto;
+  min-height: 0;
+}
+.modal-body section { margin-bottom: 12px; }
+.modal-body section:last-child { margin-bottom: 0; }
+.syntax-head {
+  margin: 0 0 4px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.syntax-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 0;
+}
+.syntax-code {
+  flex: 0 0 auto;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.72rem;
+  background: var(--bg);
+  color: var(--gem-d12);
+  border-radius: 6px;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+.syntax-desc { font-size: 0.78rem; color: var(--text); line-height: 1.35; }
+.modal-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg);
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  padding: 6px 12px;
+}
+.modal-error {
+  margin: 8px 2px 0;
+  color: var(--error);
+  font-size: 0.75rem;
+}
+.modal-error[hidden] { display: none; }
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  flex: 0 0 auto;
+}
+.modal-btn {
+  flex: 1;
+  height: 40px;
+  border-radius: 10px;
+  border: none;
+  font-family: "Figtree", sans-serif;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.modal-btn.ghost { background: var(--bg); color: var(--text); }
+.modal-btn.primary { background: var(--gem-d12); color: #ffffff; }
+
+@media (prefers-reduced-motion: reduce) {
+  .card.enter, button.tile svg.spin, .action-btn svg.spin, button.tile.glow { animation: none !important; }
+}

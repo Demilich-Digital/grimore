@@ -1,0 +1,160 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Calculator</title>
+<script src="../shared/bubble.js"></script>
+<link rel="stylesheet" href="../shared/theme.css">
+<style>
+  #log { flex: 0 1 auto; max-height: 30%; }
+  #display {
+    flex: 1;
+    min-height: 56px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    padding: 8px 16px;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  #display span {
+    font-family: "Figtree", sans-serif;
+    font-size: clamp(28px, 10vw, 52px);
+    font-weight: 300;
+    font-variant-numeric: tabular-nums;
+  }
+  #grid { grid-template-columns: repeat(4, 1fr); }
+  #grid button.tile {
+    font-size: clamp(16px, 5vw, 22px);
+    padding: 16px 4px;
+  }
+  button.tile.accent { background: var(--gem-d12); border-color: var(--gem-d12); color: #ffffff; }
+  button.tile.wide { grid-column: span 2; }
+</style>
+</head>
+<body>
+  <noscript>
+    <div style="padding:16px;font-family:system-ui,sans-serif;">
+      <h2>Calculator</h2>
+      <p>This tool needs JavaScript, which is currently disabled in this WebView.</p>
+      <p>That shouldn't happen - the app enables it itself. Please report this bug.</p>
+    </div>
+  </noscript>
+
+  <div id="log"></div>
+  <div id="display"><span id="displayText">0</span></div>
+  <div id="grid"></div>
+
+  <script>
+    const OPS = {
+      '+': (a, b) => a + b,
+      '−': (a, b) => a - b,
+      '×': (a, b) => a * b,
+      '÷': (a, b) => a / b,
+    };
+
+    let display = '0';
+    let accumulator = null;
+    let pendingOp = null;
+    let freshEntry = false;
+    let first = true;
+
+    const displayEl = document.getElementById('displayText');
+    const log = document.getElementById('log');
+    const grid = document.getElementById('grid');
+
+    function formatNumber(n) {
+      if (!isFinite(n)) return 'Error';
+      const rounded = Math.round(n * 1e10) / 1e10;
+      return String(rounded);
+    }
+
+    function render() {
+      displayEl.textContent = display;
+    }
+
+    function logCalculation(expr, text, isError) {
+      if (first) { log.innerHTML = ''; first = false; }
+      appendCard(log, { label: expr, total: text, isError });
+    }
+
+    function inputDigit(d) {
+      if (freshEntry || display === '0') { display = d; freshEntry = false; }
+      else { display += d; }
+      render();
+    }
+
+    function inputDecimal() {
+      if (freshEntry) { display = '0.'; freshEntry = false; render(); return; }
+      if (!display.includes('.')) { display += '.'; render(); }
+    }
+
+    function inputOperator(op) {
+      const value = parseFloat(display);
+      if (pendingOp && !freshEntry) {
+        accumulator = OPS[pendingOp](accumulator, value);
+      } else {
+        accumulator = value;
+      }
+      pendingOp = op;
+      freshEntry = true;
+      display = formatNumber(accumulator);
+      render();
+    }
+
+    function clearAll() {
+      display = '0';
+      accumulator = null;
+      pendingOp = null;
+      freshEntry = false;
+      render();
+    }
+
+    function backspace() {
+      if (freshEntry) return;
+      display = display.length > 1 ? display.slice(0, -1) : '0';
+      render();
+    }
+
+    function toggleSign() {
+      if (display === '0') return;
+      display = display.startsWith('-') ? display.slice(1) : '-' + display;
+      render();
+    }
+
+    function equals() {
+      if (pendingOp == null) return;
+      const value = parseFloat(display);
+      const opSymbol = pendingOp;
+      const a = accumulator;
+      const result = OPS[opSymbol](a, value);
+      const text = formatNumber(result);
+      display = text;
+      render();
+      const isError = text === 'Error';
+      logCalculation(`${formatNumber(a)} ${opSymbol} ${formatNumber(value)}`, text, isError);
+      reportToNative(`${formatNumber(a)} ${opSymbol} ${formatNumber(value)} = ${text}`, isError ? null : text.slice(0, 4));
+      accumulator = null;
+      pendingOp = null;
+      freshEntry = true;
+    }
+
+    const BUTTONS = [
+      ['C', null, clearAll], ['⌫', null, backspace], ['±', null, toggleSign], ['÷', 'accent', () => inputOperator('÷')],
+      ['7', null, () => inputDigit('7')], ['8', null, () => inputDigit('8')], ['9', null, () => inputDigit('9')], ['×', 'accent', () => inputOperator('×')],
+      ['4', null, () => inputDigit('4')], ['5', null, () => inputDigit('5')], ['6', null, () => inputDigit('6')], ['−', 'accent', () => inputOperator('−')],
+      ['1', null, () => inputDigit('1')], ['2', null, () => inputDigit('2')], ['3', null, () => inputDigit('3')], ['+', 'accent', () => inputOperator('+')],
+      ['0', 'wide', () => inputDigit('0')], ['.', null, inputDecimal], ['=', 'accent', equals],
+    ];
+
+    BUTTONS.forEach(([label, cls, handler]) => {
+      const btn = document.createElement('button');
+      btn.className = 'tile' + (cls ? ' ' + cls : '');
+      btn.textContent = label;
+      btn.addEventListener('click', () => { tapFeedback(btn); handler(); });
+      grid.appendChild(btn);
+    });
+  </script>
+</body>
+</html>

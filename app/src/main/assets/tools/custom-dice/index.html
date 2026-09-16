@@ -1,0 +1,454 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Custom Dice</title>
+<script src="../shared/bubble.js"></script>
+<link rel="stylesheet" href="../shared/theme.css">
+<style>
+  /* This tool's grid is the main scrollable area (a saved-dice list can grow
+     past the fold), rather than a fixed-height row of standard dice. */
+  #grid {
+    flex: 1;
+    min-height: 96px;
+    overflow-y: auto;
+    align-content: start;
+  }
+  .grid-hint {
+    grid-column: 1 / -1;
+    color: var(--muted);
+    font-size: 0.8rem;
+    line-height: 1.4;
+    padding: 4px 2px;
+  }
+  button.tile.add-die {
+    --gem: var(--muted);
+    background: transparent;
+    border-style: dashed;
+  }
+  button.tile.deleting { animation: wiggle 260ms ease-in-out infinite; }
+  @keyframes wiggle {
+    0%, 100% { transform: rotate(-1.5deg); }
+    50% { transform: rotate(1.5deg); }
+  }
+  .del-badge {
+    display: none;
+    position: absolute;
+    top: -7px;
+    right: -7px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--error);
+    color: #ffffff;
+    font-size: 12px;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--bg);
+  }
+  button.tile.deleting .del-badge { display: flex; }
+  #addNotationInput {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 1rem;
+    appearance: none;
+  }
+  #addNotationInput:focus { outline: none; }
+  @media (prefers-reduced-motion: reduce) {
+    button.tile.deleting { animation: none !important; }
+  }
+</style>
+</head>
+<body>
+  <noscript>
+    <div style="padding:16px;font-family:system-ui,sans-serif;">
+      <h2>Custom Dice</h2>
+      <p>This tool needs JavaScript, which is currently disabled in this WebView.</p>
+      <p>That shouldn't happen - the app enables it itself. Please report this bug.</p>
+    </div>
+  </noscript>
+
+  <div id="log"><div class="empty">Type a roll, then + to save it for reuse.</div></div>
+  <div class="input-row">
+    <input id="customInput" class="text-input" type="text" inputmode="text" placeholder="3d13+2" aria-label="Roll notation">
+    <button id="infoBtn" class="icon-btn" type="button" aria-label="Roll notation help">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><line x1="12" y1="11" x2="12" y2="16.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="7.8" r="1.1" fill="currentColor"/></svg>
+    </button>
+    <button id="clearBtn" class="icon-btn empty" type="button" aria-label="Clear roll">✕</button>
+  </div>
+  <button id="rollBtn" class="action-btn" type="button" aria-label="Roll">
+    <svg viewBox="0 0 24 24" fill="none"><polygon points="12,3 20,7.5 20,16.5 12,21 4,16.5 4,7.5" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+    <span>Roll</span>
+  </button>
+  <div id="grid"></div>
+
+  <div id="infoModalBackdrop" class="modal-backdrop" hidden>
+    <div class="modal" role="dialog" aria-label="Roll notation reference">
+      <p class="modal-title">Roll notation</p>
+      <div class="modal-body">
+        <section>
+          <p class="syntax-head">Basics</p>
+          <div class="syntax-row"><span class="syntax-code">d20</span><span class="syntax-desc">one d20 (count defaults to 1)</span></div>
+          <div class="syntax-row"><span class="syntax-code">2d6+3</span><span class="syntax-desc">two d6, plus a flat 3</span></div>
+          <div class="syntax-row"><span class="syntax-code">d100</span><span class="syntax-desc">percentile die (also d%)</span></div>
+        </section>
+        <section>
+          <p class="syntax-head">Keep / drop</p>
+          <div class="syntax-row"><span class="syntax-code">4d6dl1</span><span class="syntax-desc">drop the lowest 1</span></div>
+          <div class="syntax-row"><span class="syntax-code">2d20kh1</span><span class="syntax-desc">keep the highest (advantage)</span></div>
+          <div class="syntax-row"><span class="syntax-code">2d20kl1</span><span class="syntax-desc">keep the lowest (disadvantage)</span></div>
+        </section>
+        <section>
+          <p class="syntax-head">Exploding</p>
+          <div class="syntax-row"><span class="syntax-code">d6!</span><span class="syntax-desc">explode on the max roll</span></div>
+          <div class="syntax-row"><span class="syntax-code">d6!5</span><span class="syntax-desc">explode on 5 or higher</span></div>
+          <div class="syntax-row"><span class="syntax-code">d6!&gt;=5</span><span class="syntax-desc">same, written out (also !&gt;, !&lt;, !&lt;=)</span></div>
+        </section>
+        <section>
+          <p class="syntax-head">Counting successes</p>
+          <div class="syntax-row"><span class="syntax-code">6d10&gt;=7</span><span class="syntax-desc">how many of the 6 dice are 7+, instead of summing</span></div>
+        </section>
+        <section>
+          <p class="syntax-head">Combine them</p>
+          <div class="syntax-row"><span class="syntax-code">6d6!5kh3&gt;=5</span><span class="syntax-desc">explode on 5+, keep the best 3, count hits among those</span></div>
+        </section>
+      </div>
+      <div class="modal-actions">
+        <button id="infoCloseBtn" type="button" class="modal-btn primary">Got it</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="addModalBackdrop" class="modal-backdrop" hidden>
+    <div class="modal" role="dialog" aria-label="Save a die">
+      <p class="modal-title">Save a die</p>
+      <div class="modal-row">
+        <input id="addNotationInput" type="text" inputmode="text" placeholder="d13 or 2d6+3">
+      </div>
+      <p id="addError" class="modal-error" hidden></p>
+      <div class="modal-actions">
+        <button id="addCancelBtn" type="button" class="modal-btn ghost">Cancel</button>
+        <button id="addConfirmBtn" type="button" class="modal-btn primary">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../shared/dice.js"></script>
+  <script>
+    // --- saved dice: persistence ---
+    //
+    // A "saved die" is really just a saved notation string - "d13", "2d6+3",
+    // whatever was in the roll field when + was tapped. Stored in its canonical
+    // form (see renderBuilderTerms) so "1d13" and "d13" dedupe as the same
+    // saved entry.
+
+    // Every tool's page shares one WebView origin (appassets.androidplatform.net),
+    // so localStorage is shared too - namespaced key to avoid colliding with any
+    // other tool that starts using storage later.
+    const STORAGE_KEY = 'bubbletools.customDice.dice';
+
+    function loadCustomDice() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed.filter((n) => typeof n === 'string' && parseBuilderTerms(n) !== null);
+      } catch (e) {
+        return [];
+      }
+    }
+    function saveCustomDice() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(customDice));
+      } catch (e) {
+        // Private/incognito-style WebView storage, or storage full - the dice
+        // list still works for this session, it just won't survive a restart.
+      }
+    }
+
+    let customDice = loadCustomDice();
+
+    // --- UI ---
+
+    const CUSTOM_GEM = '--gem-d12';
+    const PALETTE = ['--gem-d4', '--gem-d6', '--gem-d8', '--gem-d10', '--gem-d12', '--gem-d20', '--gem-d100'];
+    function gemForNotation(notation) {
+      const idx = customDice.indexOf(notation);
+      return idx === -1 ? CUSTOM_GEM : PALETTE[idx % PALETTE.length];
+    }
+
+    const log = document.getElementById('log');
+    const grid = document.getElementById('grid');
+    let first = true;
+
+    function logCard(label, gemVarName, detailText, total, isError) {
+      if (first) { log.innerHTML = ''; first = false; }
+      appendCard(log, { label, gemVarName, detailText, total, isError });
+    }
+
+    // Color a rolled result by whichever saved die it matches (canonical-form
+    // aware, so "1d13" still matches a saved "d13") - otherwise the neutral
+    // custom-roll violet for anything that isn't one of the saved dice.
+    function canonicalize(raw) {
+      const terms = parseBuilderTerms(raw);
+      return terms ? renderBuilderTerms(terms) : raw.trim();
+    }
+    function gemForRaw(raw) {
+      return gemForNotation(canonicalize(raw));
+    }
+
+    function executeRoll() {
+      const raw = customInput.value.trim();
+      if (!raw) return;
+      tapFeedback(rollBtn);
+      try {
+        const result = rollNotation(raw);
+        logCard(raw, gemForRaw(raw), breakdown(result), result.total, false);
+        reportToNative(`🎲 ${raw}: ${breakdown(result)}`, result.total);
+      } catch (e) {
+        logCard(raw, CUSTOM_GEM, e.message, null, true);
+        reportToNative(`⚠️ ${e.message}`, null);
+      }
+    }
+
+    function appendRawFragment(fragment) {
+      const current = customInput.value.trim();
+      customInput.value = current ? current + '+' + fragment : fragment;
+    }
+
+    // Tapping a saved die inserts its notation into the builder. A plain
+    // unmodified single die (the common case: "d13") merges into a matching
+    // term already there, same as before ("d13" x3 taps -> "3d13"). Anything
+    // else - an explode/keep-drop/success-count modifier, or a multi-term save
+    // like "2d6+3" - just appends a fresh copy each tap: merging counts on a
+    // modified term would silently change what it means (2d20kh1 + 2d20kh1 is
+    // NOT 4d20kh1), and a compound save doesn't reduce to a single count at all.
+    function insertSavedNotation(notation) {
+      const savedTerms = parseBuilderTerms(notation);
+      const builderTerms = parseBuilderTerms(customInput.value);
+      if (savedTerms === null || builderTerms === null) {
+        appendRawFragment(notation);
+        refreshClearButton();
+        return;
+      }
+      if (savedTerms.length === 1 && isPlainDiceTerm(savedTerms[0])) {
+        const want = savedTerms[0];
+        const existing = builderTerms.find((t) => isPlainDiceTerm(t) && t.sides === want.sides);
+        if (existing) existing.count = Math.min(MAX_DICE_PER_TERM, existing.count + want.count);
+        else builderTerms.push(Object.assign({}, want));
+      } else {
+        savedTerms.forEach((t) => builderTerms.push(Object.assign({}, t)));
+      }
+      customInput.value = renderBuilderTerms(builderTerms);
+      refreshClearButton();
+    }
+
+    // ---- saved dice grid: save, tap-to-build, long-press-to-remove ----
+
+    // A saved notation that's just a single plain die gets that die's own icon
+    // (and, for d100, the % circle); anything else (a modifier, or a multi-term
+    // save like "2d6+3") gets a generic die silhouette - there's no one shape
+    // that represents an arbitrary formula.
+    function tileIcon(notation) {
+      const terms = parseBuilderTerms(notation);
+      if (terms && terms.length === 1 && terms[0].kind === 'dice') return diceSvg(terms[0].sides);
+      return diceSvg(20);
+    }
+
+    let longPressTimer = null;
+    let longPressFired = false;
+    let deletingNotation = null;
+
+    function renderCustomGrid() {
+      grid.innerHTML = '';
+      customDice.forEach((notation) => {
+        const tile = document.createElement('button');
+        tile.type = 'button';
+        tile.className = 'tile' + (deletingNotation === notation ? ' deleting' : '');
+        tile.dataset.notation = notation;
+        tile.style.setProperty('--gem', 'var(' + gemForNotation(notation) + ')');
+        tile.setAttribute('aria-label', notation + (deletingNotation === notation ? ', hold to remove' : ''));
+        tile.innerHTML = tileIcon(notation) + '<span>' + escapeHtml(notation) + '</span>' +
+          '<span class="del-badge" aria-hidden="true">✕</span>';
+        attachDieHandlers(tile, notation);
+        grid.appendChild(tile);
+      });
+
+      const addTile = document.createElement('button');
+      addTile.type = 'button';
+      addTile.className = 'tile add-die';
+      addTile.setAttribute('aria-label', 'Save the current roll as a die');
+      addTile.innerHTML =
+        '<svg viewBox="0 0 24 24" fill="none"><line x1="12" y1="5" x2="12" y2="19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
+        '<line x1="5" y1="12" x2="19" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Add</span>';
+      addTile.addEventListener('click', saveCurrentAsDie);
+      grid.appendChild(addTile);
+
+      if (customDice.length === 0) {
+        const hint = document.createElement('div');
+        hint.className = 'grid-hint';
+        hint.textContent = 'No saved dice yet - type a roll above and tap + to save it, or type your roll and hit Roll directly.';
+        grid.insertBefore(hint, addTile);
+      }
+    }
+
+    function attachDieHandlers(tile, notation) {
+      tile.addEventListener('pointerdown', () => {
+        longPressFired = false;
+        clearTimeout(longPressTimer);
+        longPressTimer = setTimeout(() => {
+          longPressFired = true;
+          enterDeleteMode(notation);
+        }, 500);
+      });
+      const cancelTimer = () => clearTimeout(longPressTimer);
+      tile.addEventListener('pointerup', cancelTimer);
+      tile.addEventListener('pointerleave', cancelTimer);
+      tile.addEventListener('pointercancel', cancelTimer);
+      tile.addEventListener('click', () => {
+        if (longPressFired) { longPressFired = false; return; }
+        tapFeedback(tile);
+        insertSavedNotation(notation);
+      });
+    }
+
+    function enterDeleteMode(notation) {
+      deletingNotation = notation;
+      renderCustomGrid();
+      // One-shot: whatever the *next* click anywhere turns out to be, it either
+      // confirms the delete (tapped the badge), is the same long-press's own
+      // trailing click (tapped/released on the same tile - ignored, badge stays
+      // open), or is a click elsewhere (dismiss without also performing that
+      // element's own action, same as tapping away from a jiggling home-screen icon).
+      document.addEventListener('click', handleDeleteModeClick, { capture: true });
+    }
+
+    function handleDeleteModeClick(e) {
+      const badge = e.target.closest('.del-badge');
+      const tile = e.target.closest('button.tile');
+      document.removeEventListener('click', handleDeleteModeClick, { capture: true });
+      const removingNotation = deletingNotation;
+      if (badge) {
+        e.stopPropagation();
+        e.preventDefault();
+        removeSavedDie(removingNotation);
+        return;
+      }
+      if (tile && tile.dataset.notation === removingNotation) {
+        e.stopPropagation();
+        e.preventDefault();
+        return;
+      }
+      e.stopPropagation();
+      e.preventDefault();
+      deletingNotation = null;
+      renderCustomGrid();
+    }
+
+    function removeSavedDie(notation) {
+      customDice = customDice.filter((n) => n !== notation);
+      saveCustomDice();
+      deletingNotation = null;
+      renderCustomGrid();
+    }
+
+    renderCustomGrid();
+
+    // ---- saving a die: the + tile takes whatever's in the roll field; the
+    // modal only shows up if that field is empty (or what was in it didn't
+    // save cleanly), so it can prompt for - and show an error against -
+    // exactly what the + tile tried and failed with. ----
+
+    // Tries to save a notation string; returns { ok: true, canonical } or
+    // { ok: false, message } without ever touching the modal - the two
+    // callers (the + tile and the modal's own Save button) each decide what
+    // to do with a failure.
+    function trySaveNotation(raw) {
+      const terms = parseBuilderTerms(raw);
+      if (terms === null || terms.length === 0) {
+        return { ok: false, message: `Couldn't save "${raw}" - check the notation.` };
+      }
+      const canonical = renderBuilderTerms(terms);
+      if (customDice.includes(canonical)) {
+        return { ok: false, message: `${canonical} is already saved.` };
+      }
+      customDice.push(canonical);
+      saveCustomDice();
+      renderCustomGrid();
+      return { ok: true, canonical };
+    }
+
+    function saveCurrentAsDie() {
+      const raw = customInput.value.trim();
+      if (!raw) { openAddModal(); return; }
+      const result = trySaveNotation(raw);
+      if (!result.ok) openAddModal(raw, result.message);
+    }
+
+    const addBackdrop = document.getElementById('addModalBackdrop');
+    const addNotationInput = document.getElementById('addNotationInput');
+    const addError = document.getElementById('addError');
+
+    function openAddModal(prefill, errorMessage) {
+      addNotationInput.value = prefill || '';
+      if (errorMessage) { addError.textContent = errorMessage; addError.hidden = false; }
+      else { addError.hidden = true; }
+      addBackdrop.hidden = false;
+      addNotationInput.focus();
+    }
+    function closeAddModal() {
+      addBackdrop.hidden = true;
+    }
+    function confirmAddDie() {
+      const raw = addNotationInput.value.trim();
+      if (!raw) {
+        addError.textContent = 'Type a die or roll to save.';
+        addError.hidden = false;
+        return;
+      }
+      const result = trySaveNotation(raw);
+      if (!result.ok) {
+        addError.textContent = result.message;
+        addError.hidden = false;
+        return;
+      }
+      closeAddModal();
+    }
+    document.getElementById('addCancelBtn').addEventListener('click', closeAddModal);
+    document.getElementById('addConfirmBtn').addEventListener('click', confirmAddDie);
+    addBackdrop.addEventListener('click', (e) => { if (e.target === addBackdrop) closeAddModal(); });
+    addNotationInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') confirmAddDie(); });
+
+    // ---- roll field wiring ----
+
+    const customInput = document.getElementById('customInput');
+    const rollBtn = document.getElementById('rollBtn');
+    const clearBtn = document.getElementById('clearBtn');
+
+    function refreshClearButton() {
+      clearBtn.classList.toggle('empty', customInput.value.length === 0);
+    }
+    clearBtn.addEventListener('click', () => {
+      customInput.value = '';
+      refreshClearButton();
+      customInput.focus();
+    });
+    customInput.addEventListener('input', refreshClearButton);
+
+    rollBtn.addEventListener('click', executeRoll);
+    customInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') executeRoll(); });
+
+    const infoBtn = document.getElementById('infoBtn');
+    const infoBackdrop = document.getElementById('infoModalBackdrop');
+    infoBtn.addEventListener('click', () => { infoBackdrop.hidden = false; });
+    document.getElementById('infoCloseBtn').addEventListener('click', () => { infoBackdrop.hidden = true; });
+    infoBackdrop.addEventListener('click', (e) => { if (e.target === infoBackdrop) infoBackdrop.hidden = true; });
+  </script>
+</body>
+</html>

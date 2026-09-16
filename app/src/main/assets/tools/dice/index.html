@@ -1,0 +1,214 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dice</title>
+<script src="../shared/bubble.js"></script>
+<link rel="stylesheet" href="../shared/theme.css">
+<style>
+  #customBtn svg.spin { animation: tumble 520ms cubic-bezier(.3,.2,.2,1); }
+  @media (prefers-reduced-motion: reduce) {
+    #customBtn svg.spin { animation: none !important; }
+  }
+</style>
+</head>
+<body>
+  <noscript>
+    <div style="padding:16px;font-family:system-ui,sans-serif;">
+      <h2>Dice Bot</h2>
+      <p>This tool needs JavaScript, which is currently disabled in this WebView.</p>
+      <p>That shouldn't happen - the app enables it itself. Please report this bug.</p>
+    </div>
+  </noscript>
+
+  <div id="log"><div class="empty">Tap dice to build a roll, then hit Roll.</div></div>
+  <div class="input-row">
+    <input id="customInput" class="text-input" type="text" inputmode="text" placeholder="3d8-1d4+2" aria-label="Roll notation">
+    <button id="infoBtn" class="icon-btn" type="button" aria-label="Roll notation help">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><line x1="12" y1="11" x2="12" y2="16.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="7.8" r="1.1" fill="currentColor"/></svg>
+    </button>
+    <button id="clearBtn" class="icon-btn empty" type="button" aria-label="Clear roll">✕</button>
+  </div>
+  <button id="customBtn" class="action-btn" type="button" aria-label="Roll">
+    <svg viewBox="0 0 24 24" fill="none"><polygon points="12,3 20,7.5 20,16.5 12,21 4,16.5 4,7.5" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+    <span>Roll</span>
+  </button>
+  <div id="grid"></div>
+
+  <div id="infoModalBackdrop" class="modal-backdrop" hidden>
+    <div class="modal" role="dialog" aria-label="Roll notation reference">
+      <p class="modal-title">Roll notation</p>
+      <div class="modal-body">
+        <section>
+          <p class="syntax-head">Basics</p>
+          <div class="syntax-row"><span class="syntax-code">d20</span><span class="syntax-desc">one d20 (count defaults to 1)</span></div>
+          <div class="syntax-row"><span class="syntax-code">2d6+3</span><span class="syntax-desc">two d6, plus a flat 3</span></div>
+          <div class="syntax-row"><span class="syntax-code">d100</span><span class="syntax-desc">percentile die (also d%)</span></div>
+        </section>
+        <section>
+          <p class="syntax-head">Keep / drop</p>
+          <div class="syntax-row"><span class="syntax-code">4d6dl1</span><span class="syntax-desc">drop the lowest 1</span></div>
+          <div class="syntax-row"><span class="syntax-code">2d20kh1</span><span class="syntax-desc">keep the highest (advantage)</span></div>
+          <div class="syntax-row"><span class="syntax-code">2d20kl1</span><span class="syntax-desc">keep the lowest (disadvantage)</span></div>
+        </section>
+        <section>
+          <p class="syntax-head">Exploding</p>
+          <div class="syntax-row"><span class="syntax-code">d6!</span><span class="syntax-desc">explode on the max roll</span></div>
+          <div class="syntax-row"><span class="syntax-code">d6!5</span><span class="syntax-desc">explode on 5 or higher</span></div>
+          <div class="syntax-row"><span class="syntax-code">d6!&gt;=5</span><span class="syntax-desc">same, written out (also !&gt;, !&lt;, !&lt;=)</span></div>
+        </section>
+        <section>
+          <p class="syntax-head">Counting successes</p>
+          <div class="syntax-row"><span class="syntax-code">6d10&gt;=7</span><span class="syntax-desc">how many of the 6 dice are 7+, instead of summing</span></div>
+        </section>
+        <section>
+          <p class="syntax-head">Combine them</p>
+          <div class="syntax-row"><span class="syntax-code">6d6!5kh3&gt;=5</span><span class="syntax-desc">explode on 5+, keep the best 3, count hits among those</span></div>
+        </section>
+      </div>
+      <div class="modal-actions">
+        <button id="infoCloseBtn" type="button" class="modal-btn primary">Got it</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../shared/dice.js"></script>
+  <script>
+    // --- UI ---
+
+    // Tapping a die button no longer rolls it directly - it adds to (or, for a
+    // die size already in the field, increments the count of) the notation in
+    // the roll builder below, so repeated taps read "3d6" instead of rolling
+    // three separate d6s. Adv/Dis are mutually-exclusive toggles rather than
+    // counts, since "2x advantage" isn't a thing. Hitting Roll is what actually
+    // rolls the composed notation; it stays in the field afterward (clear it
+    // with the X) so the same damage formula can be rolled again for a second hit.
+    const BUTTONS = [
+      { label: 'd4', kind: 'die', sides: 4 },
+      { label: 'd6', kind: 'die', sides: 6 },
+      { label: 'd8', kind: 'die', sides: 8 },
+      { label: 'd10', kind: 'die', sides: 10 },
+      { label: 'd12', kind: 'die', sides: 12 },
+      { label: 'd20', kind: 'die', sides: 20 },
+      { label: 'd100', kind: 'die', sides: 100 },
+      { label: 'Adv', kind: 'adv', sides: 20 },
+      { label: 'Dis', kind: 'dis', sides: 20 },
+    ];
+    const CUSTOM_GEM = '--gem-d12';
+
+    const log = document.getElementById('log');
+    const grid = document.getElementById('grid');
+    let first = true;
+
+    function logCard(label, gemVarName, detailText, total, isError) {
+      if (first) { log.innerHTML = ''; first = false; }
+      appendCard(log, { label, gemVarName, detailText, total, isError });
+    }
+
+    // If the whole notation is a single "NdX" term (optionally 2d20kh1/kl1, which
+    // is what Adv/Dis compose), color the result by that die - otherwise fall back
+    // to the neutral custom-roll violet for anything mixed.
+    function gemForResult(result) {
+      if (result.terms.length !== 1 || result.terms[0].kind !== 'dice') return CUSTOM_GEM;
+      const m = result.terms[0].text.match(/d(\d+|%)/i);
+      if (!m) return CUSTOM_GEM;
+      const sides = m[1] === '%' ? 100 : parseInt(m[1], 10);
+      return GEM_VAR[sides] || CUSTOM_GEM;
+    }
+
+    function executeRoll() {
+      const raw = customInput.value.trim();
+      if (!raw) return;
+      tapFeedback(customBtn);
+      try {
+        const result = rollNotation(raw);
+        logCard(raw, gemForResult(result), breakdown(result), result.total, false);
+        reportToNative(`🎲 ${raw}: ${breakdown(result)}`, result.total);
+      } catch (e) {
+        logCard(raw, CUSTOM_GEM, e.message, null, true);
+        reportToNative(`⚠️ ${e.message}`, null);
+      }
+    }
+
+    function appendRawFragment(fragment) {
+      const current = customInput.value.trim();
+      customInput.value = current ? current + '+' + fragment : fragment;
+    }
+
+    function bumpDie(sides) {
+      const terms = parseBuilderTerms(customInput.value);
+      if (terms === null) {
+        appendRawFragment(sides === 100 ? 'd100' : 'd' + sides);
+      } else {
+        const existing = terms.find((t) => isPlainDiceTerm(t) && t.sides === sides);
+        if (existing) existing.count = Math.min(MAX_DICE_PER_TERM, existing.count + 1);
+        else terms.push({ kind: 'dice', sign: 1, count: 1, sides, explode: null, keepDrop: null, successCmp: null });
+        customInput.value = renderBuilderTerms(terms);
+      }
+      refreshClearButton();
+    }
+
+    function toggleAdvDis(which) {
+      const wantMod = which === 'adv' ? 'kh1' : 'kl1';
+      const otherMod = which === 'adv' ? 'kl1' : 'kh1';
+      const fragment = which === 'adv' ? '2d20kh1' : '2d20kl1';
+      const terms = parseBuilderTerms(customInput.value);
+      if (terms === null) {
+        appendRawFragment(fragment);
+        refreshClearButton();
+        return;
+      }
+      const idx = terms.findIndex((t) => t.kind === 'dice' && t.sides === 20 && t.count === 2 && normalizeKeepDrop(t.keepDrop) === wantMod);
+      if (idx !== -1) {
+        terms.splice(idx, 1);
+      } else {
+        const otherIdx = terms.findIndex((t) => t.kind === 'dice' && t.sides === 20 && t.count === 2 && normalizeKeepDrop(t.keepDrop) === otherMod);
+        if (otherIdx !== -1) terms.splice(otherIdx, 1);
+        terms.push({
+          kind: 'dice', sign: 1, count: 2, sides: 20,
+          explode: null, keepDrop: which === 'adv' ? 'kh1' : 'kl1', successCmp: null,
+        });
+      }
+      customInput.value = renderBuilderTerms(terms);
+      refreshClearButton();
+    }
+
+    BUTTONS.forEach((spec) => {
+      const btn = document.createElement('button');
+      btn.className = 'tile';
+      btn.style.setProperty('--gem', 'var(' + GEM_VAR[spec.sides] + ')');
+      btn.innerHTML = diceSvg(spec.sides) + '<span>' + spec.label + '</span>';
+      btn.addEventListener('click', () => {
+        tapFeedback(btn);
+        if (spec.kind === 'die') bumpDie(spec.sides);
+        else toggleAdvDis(spec.kind);
+      });
+      grid.appendChild(btn);
+    });
+
+    const customInput = document.getElementById('customInput');
+    const customBtn = document.getElementById('customBtn');
+    const clearBtn = document.getElementById('clearBtn');
+
+    function refreshClearButton() {
+      clearBtn.classList.toggle('empty', customInput.value.length === 0);
+    }
+    clearBtn.addEventListener('click', () => {
+      customInput.value = '';
+      refreshClearButton();
+      customInput.focus();
+    });
+    customInput.addEventListener('input', refreshClearButton);
+
+    customBtn.addEventListener('click', executeRoll);
+    customInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') executeRoll(); });
+
+    const infoBtn = document.getElementById('infoBtn');
+    const infoBackdrop = document.getElementById('infoModalBackdrop');
+    infoBtn.addEventListener('click', () => { infoBackdrop.hidden = false; });
+    document.getElementById('infoCloseBtn').addEventListener('click', () => { infoBackdrop.hidden = true; });
+    infoBackdrop.addEventListener('click', (e) => { if (e.target === infoBackdrop) infoBackdrop.hidden = true; });
+  </script>
+</body>
+</html>

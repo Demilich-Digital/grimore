@@ -1,0 +1,16 @@
+.gradle/
+build/
+app/build/
+local.properties
+*.iml
+.idea/
+
+# Real launcher-icon branding is deliberately kept out of this repo (it's
+# proprietary, not MIT-licensed like the code - see app/build.gradle.kts) -
+# only the open-source placeholder is tracked.
+/branding/*
+!/branding/oss/
+
+# The release signing key and its passwords must never be committed - losing
+# control of this is far worse than losing the repo (see app/build.gradle.kts).
+/signing/

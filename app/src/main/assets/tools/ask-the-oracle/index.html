@@ -1,0 +1,51 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ask the Oracle</title>
+<script src="../shared/bubble.js"></script>
+<link rel="stylesheet" href="../shared/theme.css">
+<style>
+  #grid { grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); }
+</style>
+</head>
+<body>
+  <noscript>
+    <div style="padding:16px;font-family:system-ui,sans-serif;">
+      <h2>Ask the Oracle</h2>
+      <p>This tool needs JavaScript, which is currently disabled in this WebView.</p>
+      <p>That shouldn't happen - the app enables it itself. Please report this bug.</p>
+    </div>
+  </noscript>
+
+  <div id="log"><div class="empty">Ask a yes/no question, then pick how likely it is.</div></div>
+  <div id="grid"></div>
+
+  <script src="../shared/oracle.js"></script>
+  <script>
+    // "Ask the Oracle" yes/no tables from Ironsworn (classic rulebook), by
+    // Shawn Tomkin - CC BY 4.0 (https://creativecommons.org/licenses/by/4.0).
+    // Sourced from Datasworn (https://github.com/rsek/datasworn). Rows are
+    // {min, max, text}; roll 1d100 and find the row whose range contains it.
+    const TABLES = {"almost_certain":{"name":"Almost Certain","dice":"1d100","rows":[{"min":1,"max":10,"text":"No"},{"min":11,"max":100,"text":"Yes"}]},"likely":{"name":"Likely","dice":"1d100","rows":[{"min":1,"max":25,"text":"No"},{"min":26,"max":100,"text":"Yes"}]},"fifty_fifty":{"name":"50/50","dice":"1d100","rows":[{"min":1,"max":50,"text":"No"},{"min":51,"max":100,"text":"Yes"}]},"unlikely":{"name":"Unlikely","dice":"1d100","rows":[{"min":1,"max":75,"text":"No"},{"min":76,"max":100,"text":"Yes"}]},"small_chance":{"name":"Small Chance","dice":"1d100","rows":[{"min":1,"max":90,"text":"No"},{"min":91,"max":100,"text":"Yes"}]}};
+
+    const log = document.getElementById('log');
+    const grid = document.getElementById('grid');
+    let first = true;
+
+    function ask(key) {
+      const table = TABLES[key];
+      const { roll, text } = rollTable(table);
+      if (first) { log.innerHTML = ''; first = false; }
+      appendCard(log, { label: table.name, total: text, detailText: 'rolled ' + roll });
+      reportToNative(table.name + ': ' + text, text);
+    }
+
+    initOracleGrid(grid, Object.keys(TABLES).map((key) => ({
+      label: TABLES[key].name,
+      handler: () => ask(key),
+    })));
+  </script>
+</body>
+</html>
