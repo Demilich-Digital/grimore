@@ -31,9 +31,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -46,7 +47,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -82,6 +82,7 @@ import digital.demilich.grimoire.MainActivity
 import digital.demilich.grimoire.R
 import digital.demilich.grimoire.bridge.GrimoireBridge
 import digital.demilich.grimoire.data.GrimoireTool
+import digital.demilich.grimoire.data.PanelPosition
 import digital.demilich.grimoire.data.RecentTools
 import digital.demilich.grimoire.ui.theme.GrimoireTheme
 import kotlin.math.PI
@@ -109,6 +110,22 @@ private const val BUBBLE_SIZE_DP = 56
 private const val DISMISS_ZONE_SIZE_DP = 72
 private const val DISMISS_ZONE_HIGHLIGHTED_SIZE_DP = 96
 private const val DISMISS_ZONE_BOTTOM_PADDING_DP = 32
+
+// Fixed panel footprint - shared between the Compose Surface size in
+// PanelContent and the clamp math in showPanel()/movePanel() so the two
+// can't silently drift apart the way BUBBLE_SIZE_DP guards against above.
+private const val PANEL_WIDTH_DP = 340
+private const val PANEL_HEIGHT_DP = 560
+
+// Explicit rather than left to wrap-content: the title Row's drag handle
+// (see PanelContent) uses fillMaxHeight() to make the whole bar draggable,
+// not just the title text's own line height. Without a fixed height on the
+// Row itself, Column hands every child the full remaining panel height as
+// its max-height constraint (nothing else claims a share of it via weight),
+// so that fillMaxHeight() would resolve against the *entire panel*, not just
+// the bar - expanding the Row to eat the whole window and squeezing the
+// WebView/list below it down to nothing.
+private const val PANEL_TITLE_BAR_HEIGHT_DP = 56
 
 // The fan's icon count adapts to available screen space rather than being
 // fixed (see computeFanLayout) - these bound that adaptation. Radius grows
@@ -203,6 +220,14 @@ private fun Modifier.dragOrTap(
     }
 }
 
+// Keeps a dragged window's top-left corner from ever landing where the
+// window would hang off an edge of the screen - value is only let range over
+// [0, screenSizePx - windowSizePx], and coerceAtLeast(0) on that upper bound
+// covers the (screen smaller than window) edge case, where windowSizePx
+// itself is left flush at 0 rather than the range flipping negative.
+private fun clampToScreen(value: Int, windowSizePx: Int, screenSizePx: Int): Int =
+    value.coerceIn(0, (screenSizePx - windowSizePx).coerceAtLeast(0))
+
 /**
  * Owns the whole floating overlay: a small draggable bubble (always present
  * while the overlay is "on"); on tap, a fan-out arc of recent tools plus a
@@ -214,8 +239,11 @@ private fun Modifier.dragOrTap(
  * Four independent WindowManager windows, added/removed as needed rather
  * than one window whose flags/size are mutated in place - simpler lifecycle,
  * and lets e.g. the bubble stay FLAG_NOT_FOCUSABLE (so the app underneath
- * keeps its keyboard) while the panel is focusable (so a tool's text inputs
- * work).
+ * keeps its keyboard) independently of the panel, which starts
+ * FLAG_NOT_FOCUSABLE too (so it can be left open - dragged out of the way
+ * rather than closed - while the user keeps typing in the app underneath) and
+ * only toggles focusable transiently when the panel's own text inputs need
+ * it - see the flag-toggling comment in showPanel().
  */
 class OverlayService : Service() {
 
@@ -256,10 +284,17 @@ class OverlayService : Service() {
     private val dismissLifecycleOwner = ComposeOverlayLifecycleOwner()
 
     private lateinit var bubbleParams: WindowManager.LayoutParams
+    private lateinit var panelParams: WindowManager.LayoutParams
 
     private var isOverDismissZone by mutableStateOf(false)
     private var selectedTool by mutableStateOf<GrimoireTool?>(null)
     private var recentTools by mutableStateOf<List<GrimoireTool>>(emptyList())
+
+    // Loaded once in onCreate (see RecentTools's recentTools above for the
+    // same pattern) and consulted only when the panel window is first created
+    // in showPanel() - once that window exists, panelParams is the live
+    // source of truth and this is never read again until the next process.
+    private var savedPanelPosition: Pair<Int, Int>? = null
 
     // Fixed anchors captured once at drag start (see startBubbleDrag) - moveBubble
     // re-derives the target position fresh from these every event rather than
@@ -268,6 +303,14 @@ class OverlayService : Service() {
     private var dragAnchorRawY = 0f
     private var dragAnchorBubbleX = 0
     private var dragAnchorBubbleY = 0
+
+    // Same pattern as the bubble's drag anchors above, kept separate since a
+    // bubble drag and a panel drag are never in flight at the same time but
+    // do belong to two different windows with independent positions.
+    private var panelDragAnchorRawX = 0f
+    private var panelDragAnchorRawY = 0f
+    private var panelDragAnchorX = 0
+    private var panelDragAnchorY = 0
 
     // Off the UI thread for DataStore reads/writes triggered from Compose
     // callbacks (tapping a fan icon or list row) - a blocking call there
@@ -281,6 +324,7 @@ class OverlayService : Service() {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         addBubbleView()
         serviceScope.launch { recentTools = RecentTools.get(this@OverlayService) }
+        serviceScope.launch { savedPanelPosition = PanelPosition.get(this@OverlayService) }
         _isRunning.value = true
     }
 
@@ -741,6 +785,20 @@ class OverlayService : Service() {
 
     private fun showPanel() {
         if (panelView != null) return
+        val density = resources.displayMetrics.density
+        val panelWidthPx = (PANEL_WIDTH_DP * density).roundToInt()
+        val panelHeightPx = (PANEL_HEIGHT_DP * density).roundToInt()
+        val screenWidthPx = resources.displayMetrics.widthPixels
+        val screenHeightPx = resources.displayMetrics.heightPixels
+
+        // Re-clamp a saved position on every open, not just at save time - the
+        // screen this was saved on may have been a different size/orientation
+        // (rotation, a different device restoring backed-up prefs), and an
+        // un-clamped restore could otherwise place the panel back offscreen.
+        val (initialX, initialY) = savedPanelPosition?.let { (x, y) ->
+            clampToScreen(x, panelWidthPx, screenWidthPx) to clampToScreen(y, panelHeightPx, screenHeightPx)
+        } ?: ((screenWidthPx - panelWidthPx) / 2 to (screenHeightPx - panelHeightPx) / 2)
+
         val view = ComposeView(this)
         panelLifecycleOwner.attachTo(view)
         view.setContent {
@@ -750,31 +808,63 @@ class OverlayService : Service() {
                     onSelectTool = { tool -> selectTool(tool) },
                     onBackToList = { selectedTool = null },
                     onCollapse = { hidePanel() },
+                    onTitleDragStart = { rawX, rawY -> startPanelDrag(rawX, rawY) },
+                    onTitleDrag = { rawX, rawY -> movePanel(rawX, rawY) },
+                    onTitleDragEnd = { endPanelDrag() },
                 )
             }
         }
-        // Tap-outside-to-collapse: ACTION_OUTSIDE is only ever delivered at all
-        // if FLAG_WATCH_OUTSIDE_TOUCH is set on this window (an easy thing to
-        // miss - without it, this listener would just silently never fire).
+        // The panel starts FLAG_NOT_FOCUSABLE (below) so it never steals
+        // keyboard focus from whatever's running underneath - the whole point
+        // of leaving it open is to keep typing there while it sits out of the
+        // way. That costs the panel's own text inputs (the tool search box, a
+        // WebView field) their ability to take focus, since a non-focusable
+        // window can't hold it - so it's toggled on demand instead of fixed
+        // for the panel's whole lifetime:
+        // - Any touch landing in the panel (there's nowhere else this
+        //   listener could fire from - it's on the panel's own root view) may
+        //   be aimed at one of those inputs, so it clears FLAG_NOT_FOCUSABLE
+        //   in case. The flag flip races the very touch that triggered it -
+        //   WindowManager grants window focus based on the focusable flag at
+        //   dispatch time, and updateViewLayout() here only lands just after
+        //   - so the first tap into an unfocused panel only wakes it up; the
+        //   input itself needs a second tap to actually take focus. Accepted
+        //   trade-off: the common direction (going back to typing in the app
+        //   underneath, below) needs no extra tap at all.
+        // - Losing window focus (onWindowFocusChangeListener below) means
+        //   something else - the app underneath, the bubble, anywhere else -
+        //   just took focus instead, so nothing in the panel still needs it:
+        //   flip FLAG_NOT_FOCUSABLE back on immediately, so that same tap
+        //   finishes handing focus to whatever the user actually tapped, with
+        //   no extra step on their side.
         view.setOnTouchListener { _, event ->
-            if (event.action == MotionEvent.ACTION_OUTSIDE) {
-                hidePanel()
-                true
-            } else {
-                false
+            if (event.actionMasked == MotionEvent.ACTION_DOWN &&
+                panelParams.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE != 0
+            ) {
+                panelParams.flags = panelParams.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+                windowManager.updateViewLayout(view, panelParams)
+            }
+            false
+        }
+        view.viewTreeObserver.addOnWindowFocusChangeListener { hasFocus ->
+            if (!hasFocus && panelParams.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE == 0) {
+                panelParams.flags = panelParams.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                windowManager.updateViewLayout(view, panelParams)
             }
         }
-        val params = WindowManager.LayoutParams(
+        panelParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT,
         ).apply {
-            gravity = Gravity.CENTER
+            gravity = Gravity.TOP or Gravity.START
+            x = initialX
+            y = initialY
         }
-        windowManager.addView(view, params)
+        windowManager.addView(view, panelParams)
         panelLifecycleOwner.onWindowAdded()
         panelView = view
     }
@@ -785,6 +875,37 @@ class OverlayService : Service() {
             panelLifecycleOwner.onWindowRemoved()
         }
         panelView = null
+    }
+
+    // Called once, right when dragOrTap's touch-slop threshold is first
+    // crossed on the panel's title bar - same anchor-capture approach as
+    // startBubbleDrag, just against panelParams instead of bubbleParams.
+    private fun startPanelDrag(rawX: Float, rawY: Float) {
+        panelDragAnchorRawX = rawX
+        panelDragAnchorRawY = rawY
+        panelDragAnchorX = panelParams.x
+        panelDragAnchorY = panelParams.y
+    }
+
+    private fun movePanel(rawX: Float, rawY: Float) {
+        val density = resources.displayMetrics.density
+        val panelWidthPx = (PANEL_WIDTH_DP * density).roundToInt()
+        val panelHeightPx = (PANEL_HEIGHT_DP * density).roundToInt()
+        val targetX = panelDragAnchorX + (rawX - panelDragAnchorRawX).roundToInt()
+        val targetY = panelDragAnchorY + (rawY - panelDragAnchorRawY).roundToInt()
+        panelParams.x = clampToScreen(targetX, panelWidthPx, resources.displayMetrics.widthPixels)
+        panelParams.y = clampToScreen(targetY, panelHeightPx, resources.displayMetrics.heightPixels)
+        panelView?.let { windowManager.updateViewLayout(it, panelParams) }
+    }
+
+    // Persists wherever the drag left the panel, so the next showPanel() (this
+    // session or a future one, via savedPanelPosition loaded in onCreate)
+    // reopens it in the same place.
+    private fun endPanelDrag() {
+        val x = panelParams.x
+        val y = panelParams.y
+        savedPanelPosition = x to y
+        serviceScope.launch { PanelPosition.save(this@OverlayService, x, y) }
     }
 
     // --- Full teardown ---
@@ -1000,9 +1121,12 @@ class OverlayService : Service() {
         onSelectTool: (GrimoireTool) -> Unit,
         onBackToList: () -> Unit,
         onCollapse: () -> Unit,
+        onTitleDragStart: (rawX: Float, rawY: Float) -> Unit,
+        onTitleDrag: (rawX: Float, rawY: Float) -> Unit,
+        onTitleDragEnd: () -> Unit,
     ) {
         Surface(
-            modifier = Modifier.size(340.dp, 560.dp),
+            modifier = Modifier.size(PANEL_WIDTH_DP.dp, PANEL_HEIGHT_DP.dp),
             shape = RoundedCornerShape(16.dp),
             color = MaterialTheme.colorScheme.background,
             shadowElevation = 8.dp,
@@ -1011,6 +1135,7 @@ class OverlayService : Service() {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .height(PANEL_TITLE_BAR_HEIGHT_DP.dp)
                         .padding(horizontal = 4.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -1018,21 +1143,34 @@ class OverlayService : Service() {
                         IconButton(onClick = onBackToList) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to tools")
                         }
+                    }
+                    // Drag handle: the title bar's own click targets (back and
+                    // collapse) sit outside this Box so dragOrTap's
+                    // pointerInteropFilter never gets a chance to swallow their
+                    // taps - only the blank/title space between them moves the
+                    // panel.
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .dragOrTap(
+                                onDragStart = onTitleDragStart,
+                                onDrag = onTitleDrag,
+                                onDragEnd = onTitleDragEnd,
+                                onTap = {},
+                            ),
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
                         Text(
-                            tool.displayName,
+                            tool?.displayName ?: "Quick Grimoire",
                             style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(start = 4.dp),
-                        )
-                    } else {
-                        Text(
-                            "Quick Grimoire",
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(start = 12.dp),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(start = if (tool != null) 4.dp else 12.dp),
                         )
                     }
-                    Spacer(modifier = Modifier.weight(1f))
                     IconButton(onClick = onCollapse) {
-                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Collapse")
+                        Icon(Icons.Default.Close, contentDescription = "Collapse")
                     }
                 }
                 Box(modifier = Modifier.fillMaxSize()) {
