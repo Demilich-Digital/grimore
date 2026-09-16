@@ -6,10 +6,10 @@ its own original license, retained as required:
 
 ## Ironsworn oracle content
 
-The Ask the Oracle, Plot & Twist, Name Generator, and Settlement & Place tools
-(`app/src/main/assets/tools/{ask-the-oracle,plot-and-twist,name-generator,
-settlement-and-place}/`) embed oracle table text from *Ironsworn*, by Shawn
-Tomkin, licensed under **CC BY 4.0**
+The Ironsworn Oracles tool (`app/src/main/assets/tools/ironsworn-oracles/`,
+combining Ask the Oracle, Plot & Twist, Name Generator, and Settlement &
+Place into one tool with an oracle picker) embeds oracle table text from
+*Ironsworn*, by Shawn Tomkin, licensed under **CC BY 4.0**
 (https://creativecommons.org/licenses/by/4.0). Sourced from
 [Datasworn](https://github.com/rsek/datasworn) (tooling/schema MIT; rulebook
 content CC BY 4.0 or CC BY-NC 4.0 depending on source - only CC BY 4.0 content

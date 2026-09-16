@@ -57,7 +57,8 @@ function appendCard(log, { label, gemVarName, detailText, total, isError }) {
   card.style.setProperty('--gem', 'var(' + (gemVarName || '--gem-d12') + ')');
   card.innerHTML =
     (isError ? '' : `<span class="card-total">${total}</span>`) +
-    `<span class="card-meta"><span class="card-label">${escapeHtml(label)}</span>` +
+    `<span class="card-meta">` +
+    (label ? `<span class="card-label">${escapeHtml(label)}</span>` : '') +
     (detailText != null
       ? `<span class="card-detail"><span class="pip">${escapeHtml(detailText)}</span></span>`
       : '') +

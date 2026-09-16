@@ -1,8 +1,8 @@
-// Shared by the four Ironsworn oracle-table bubbles (Ask the Oracle, Plot &
+// Shared by the Ironsworn Oracles tool's categories (Ask the Oracle, Plot &
 // Twist, Name Generator, Settlement & Place): rolling 1d100 against a table
 // of {min, max, text} rows, and wiring up a grid of tap-to-roll tiles. What
-// each tool actually rolls and how it labels the result is real per-tool
-// content, not duplication, so that part stays in each tool's own page.
+// each category actually rolls and how it labels the result is real content,
+// not duplication, so that part stays in the tool's own page.
 
 function rollTable(table) {
   const roll = 1 + Math.floor(Math.random() * 100);
