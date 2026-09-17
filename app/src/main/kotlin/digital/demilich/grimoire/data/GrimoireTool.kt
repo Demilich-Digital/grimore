@@ -184,6 +184,15 @@ enum class GrimoireTool(
         iconRes = R.drawable.ic_oracle,
         credit = "Ironsworn: Starforged by Shawn Tomkin • CC BY 4.0",
     ),
+    STARFORGED_PLANET_ORACLES(
+        id = "starforged-planet-oracles",
+        assetPath = "tools/starforged-planet-oracles/index.html",
+        displayName = "Starforged Planet Oracles",
+        description = "Planetary Class, all eleven planet types, and Planetside Peril/Opportunity - tap a type to roll its tables, from Ironsworn: Starforged.",
+        tags = listOf("oracle", "starforged", "ironsworn", "tabletop", "random", "worldbuilding"),
+        iconRes = R.drawable.ic_oracle,
+        credit = "Ironsworn: Starforged by Shawn Tomkin • CC BY 4.0",
+    ),
     ;
 
     companion object {
