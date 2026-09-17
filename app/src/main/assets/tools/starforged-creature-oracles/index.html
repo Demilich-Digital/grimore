@@ -1,0 +1,206 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Starforged Creature Oracles</title>
+<script src="../shared/bubble.js"></script>
+<link rel="stylesheet" href="../shared/theme.css">
+<style>
+  #grid { grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); }
+  .oracle-picker {
+    position: relative;
+    flex: 0 0 auto;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .oracle-trigger {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: var(--card);
+    border: 1.5px solid var(--line);
+    border-radius: 999px;
+    padding: 10px 16px;
+    font-family: "Figtree", sans-serif;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .oracle-trigger:focus {
+    outline: none;
+    border-color: var(--gem-d12);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--gem-d12) 25%, transparent);
+  }
+  .oracle-chevron { width: 16px; height: 16px; color: var(--muted); flex: 0 0 auto; transition: transform 160ms ease; }
+  .oracle-trigger[aria-expanded="true"] .oracle-chevron { transform: rotate(180deg); }
+  .oracle-menu {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    top: 100%;
+    margin-top: 6px;
+    background: var(--card);
+    border: 1.5px solid var(--line);
+    border-radius: 14px;
+    padding: 6px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+    z-index: 5;
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+  .oracle-menu[hidden] { display: none; }
+  .oracle-menu-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-family: "Figtree", sans-serif;
+    font-weight: 600;
+    font-size: 0.88rem;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .oracle-menu-item[aria-selected="true"] { color: var(--gem-d12); }
+  .oracle-menu-item:hover, .oracle-menu-item:focus {
+    outline: none;
+    background: color-mix(in srgb, var(--gem-d12) 14%, var(--card));
+  }
+</style>
+</head>
+<body>
+  <noscript>
+    <div style="padding:16px;font-family:system-ui,sans-serif;">
+      <h2>Starforged Creature Oracles</h2>
+      <p>This tool needs JavaScript, which is currently disabled in this WebView.</p>
+      <p>That shouldn't happen - the app enables it itself. Please report this bug.</p>
+    </div>
+  </noscript>
+
+  <div class="oracle-picker">
+    <button id="oracleTrigger" class="oracle-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
+      <span id="oracleTriggerLabel">Creature</span>
+      <svg class="oracle-chevron" viewBox="0 0 24 24" fill="none"><polyline points="6 9 12 15 18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div id="oracleMenu" class="oracle-menu" role="listbox" aria-label="Oracle" hidden>
+      <button type="button" class="oracle-menu-item" data-key="creature" role="option" aria-selected="true">Creature</button>
+      <button type="button" class="oracle-menu-item" data-key="basic_form" role="option" aria-selected="false">Basic Form</button>
+    </div>
+  </div>
+  <div id="log"></div>
+  <div id="grid"></div>
+
+  <script src="../shared/oracle.js"></script>
+  <script>
+    // Ironsworn: Starforged oracles, by Shawn Tomkin - CC BY 4.0
+    // (https://creativecommons.org/licenses/by/4.0). Sourced from Datasworn
+    // (https://github.com/rsek/datasworn). Rows are {min, max, text}; roll
+    // the table's die and find the row whose range contains it.
+
+const CREATURE_TABLES = {"environment":{"name":"Environment","dice":"1d100","rows":[{"min":1,"max":5,"text":"Space"},{"min":6,"max":15,"text":"Interior"},{"min":16,"max":55,"text":"Land"},{"min":56,"max":80,"text":"Liquid"},{"min":81,"max":100,"text":"Air"}]},"scale":{"name":"Scale","dice":"1d100","rows":[{"min":1,"max":3,"text":"Minuscule (bug-sized)"},{"min":4,"max":10,"text":"Tiny (rodent-sized)"},{"min":11,"max":25,"text":"Small (dog-sized)"},{"min":26,"max":60,"text":"Medium (person-sized)"},{"min":61,"max":90,"text":"Large (vehicle-sized)"},{"min":91,"max":99,"text":"Huge (whale-sized)"},{"min":100,"max":100,"text":"Ultra-scale"}]},"ultra_scale":{"name":"Ultra-scale","dice":"1d100","rows":[{"min":1,"max":89,"text":"Titanic (hill-sized)"},{"min":90,"max":99,"text":"Colossal (mountain-sized)"},{"min":100,"max":100,"text":"Vast (planet-sized)"}]},"first_look":{"name":"Creature First Look","dice":"1d100","rows":[{"min":1,"max":2,"text":"Antennae or sensory organs"},{"min":3,"max":4,"text":"Armored"},{"min":5,"max":6,"text":"Beautiful"},{"min":7,"max":8,"text":"Biotech"},{"min":9,"max":10,"text":"Bony or gaunt"},{"min":11,"max":12,"text":"Brutish or muscled"},{"min":13,"max":14,"text":"Camouflaged"},{"min":15,"max":16,"text":"Claws or talons"},{"min":17,"max":18,"text":"Compound eyes"},{"min":19,"max":20,"text":"Comprised of many creatures"},{"min":21,"max":22,"text":"Corrupted"},{"min":23,"max":24,"text":"Crystalline"},{"min":25,"max":26,"text":"Dead or undead"},{"min":27,"max":28,"text":"Distinctive markings"},{"min":29,"max":30,"text":"Distinctive smell"},{"min":31,"max":32,"text":"Distinctive sound"},{"min":33,"max":34,"text":"Dripping mucus"},{"min":35,"max":36,"text":"Elongated Neck"},{"min":37,"max":38,"text":"Energy emissions"},{"min":39,"max":40,"text":"Extra limbs"},{"min":41,"max":42,"text":"Faceless or inexpressive"},{"min":43,"max":44,"text":"Fangs or rows of teeth"},{"min":45,"max":46,"text":"Feathered"},{"min":47,"max":48,"text":"Fungal growth"},{"min":49,"max":50,"text":"Fur, hair, or filaments"},{"min":51,"max":52,"text":"Graceful"},{"min":53,"max":54,"text":"Hideous"},{"min":55,"max":56,"text":"Hooded or crested"},{"min":57,"max":58,"text":"Immobile or trapped"},{"min":59,"max":60,"text":"Injured or scarred"},{"min":61,"max":62,"text":"Iridescent"},{"min":63,"max":64,"text":"Long-limbed"},{"min":65,"max":66,"text":"Luminescent"},{"min":67,"max":68,"text":"Mandibles or pincers"},{"min":69,"max":70,"text":"Many-eyed"},{"min":71,"max":72,"text":"Mineral or metallic"},{"min":73,"max":74,"text":"Multi-jointed"},{"min":75,"max":76,"text":"Multi-segmented body"},{"min":77,"max":78,"text":"Ornamented or colorful"},{"min":79,"max":80,"text":"Oversized mouth"},{"min":81,"max":82,"text":"Prominent tail"},{"min":83,"max":84,"text":"Prominent wings or fins"},{"min":85,"max":86,"text":"Ridges or plates"},{"min":87,"max":88,"text":"Scaled"},{"min":89,"max":90,"text":"Single eye or oversized eyes"},{"min":91,"max":92,"text":"Spikes or spines"},{"min":93,"max":94,"text":"Stinger or barbs"},{"min":95,"max":96,"text":"Tentacles or tendrils"},{"min":97,"max":98,"text":"Translucent"},{"min":99,"max":100,"text":"Visible symbiote"}]},"encountered_behavior":{"name":"Encountered Behavior","dice":"1d100","rows":[{"min":1,"max":5,"text":"Ambusher"},{"min":6,"max":10,"text":"Apex predator"},{"min":11,"max":14,"text":"Builder"},{"min":15,"max":19,"text":"Camouflager"},{"min":20,"max":24,"text":"Forager"},{"min":25,"max":29,"text":"Grazer"},{"min":30,"max":33,"text":"Herder"},{"min":34,"max":37,"text":"Hibernator"},{"min":38,"max":41,"text":"Hoarder"},{"min":42,"max":46,"text":"Hunter"},{"min":47,"max":51,"text":"Lurer"},{"min":52,"max":55,"text":"Migratory"},{"min":56,"max":60,"text":"Mimic"},{"min":61,"max":65,"text":"Nester"},{"min":66,"max":70,"text":"Pack hunter"},{"min":71,"max":75,"text":"Prey"},{"min":76,"max":80,"text":"Protector"},{"min":81,"max":85,"text":"Scavenger"},{"min":86,"max":90,"text":"Tracker"},{"min":91,"max":95,"text":"Trapper"},{"min":96,"max":100,"text":"Roll twice"}]},"revealed_aspect":{"name":"Revealed Creature Aspect","dice":"1d100","rows":[{"min":1,"max":2,"text":"Alternative environment"},{"min":3,"max":4,"text":"Alternative movement"},{"min":5,"max":6,"text":"Alternative senses"},{"min":7,"max":8,"text":"Burrower"},{"min":9,"max":10,"text":"Chameleon"},{"min":11,"max":12,"text":"Clever"},{"min":13,"max":14,"text":"Consumes energy"},{"min":15,"max":16,"text":"Consumes inorganic matter"},{"min":17,"max":18,"text":"Controlled or puppeteered"},{"min":19,"max":20,"text":"Controls lesser creatures"},{"min":21,"max":22,"text":"Corrosive excretion"},{"min":23,"max":24,"text":"Crusher or constrictor"},{"min":25,"max":26,"text":"Egg sac or carried offspring"},{"min":27,"max":28,"text":"Electric shock"},{"min":29,"max":30,"text":"Electromagnetic pulse"},{"min":31,"max":32,"text":"Energy breath"},{"min":33,"max":34,"text":"Energy manipulation"},{"min":35,"max":36,"text":"Engineered biology"},{"min":37,"max":38,"text":"Enhanced senses"},{"min":39,"max":40,"text":"Enhanced strength"},{"min":41,"max":42,"text":"Entangling secretion"},{"min":43,"max":44,"text":"Extradimensional"},{"min":45,"max":46,"text":"Hallucinogen secretion"},{"min":47,"max":48,"text":"Hidden symbiote"},{"min":49,"max":50,"text":"Hive mind"},{"min":51,"max":52,"text":"Illusionary"},{"min":53,"max":54,"text":"Infectious"},{"min":55,"max":56,"text":"Infested with parasites"},{"min":57,"max":58,"text":"Intimidating threat display"},{"min":59,"max":60,"text":"Limited sense"},{"min":61,"max":62,"text":"Magnetic"},{"min":63,"max":64,"text":"Mental influence or control"},{"min":65,"max":66,"text":"Metamorphic"},{"min":67,"max":68,"text":"Noxious cloud or spores"},{"min":69,"max":70,"text":"Paralytic toxin"},{"min":71,"max":72,"text":"Parasitic"},{"min":73,"max":74,"text":"Pheromones"},{"min":75,"max":76,"text":"Poisonous"},{"min":77,"max":78,"text":"Powerful bite"},{"min":79,"max":80,"text":"Proboscis or inner jaw"},{"min":81,"max":82,"text":"Projectile attack"},{"min":83,"max":84,"text":"Radioactive"},{"min":85,"max":86,"text":"Regeneration"},{"min":87,"max":88,"text":"Replication"},{"min":89,"max":90,"text":"Sacrificial defense"},{"min":91,"max":92,"text":"Shapechanger"},{"min":93,"max":94,"text":"Telekinetic"},{"min":95,"max":96,"text":"Teleportation"},{"min":97,"max":98,"text":"Territorial"},{"min":99,"max":100,"text":"Toxic spew"}]}};
+const BASIC_FORM_TABLES = {"space":{"name":"Space","dice":"1d100","rows":[{"min":1,"max":5,"text":"Amoeba / pseudopods"},{"min":6,"max":20,"text":"Amorphous / elemental"},{"min":21,"max":30,"text":"Avian / winged"},{"min":31,"max":32,"text":"Beast / mammal"},{"min":33,"max":34,"text":"Crustacean / shelled"},{"min":35,"max":37,"text":"Fish / torpedo-shaped"},{"min":38,"max":39,"text":"Humanoid / bipedal"},{"min":40,"max":41,"text":"Insectoid / exoskeletal"},{"min":42,"max":60,"text":"Jellyfish / gasbag"},{"min":61,"max":62,"text":"Lizard / reptilian"},{"min":63,"max":67,"text":"Octopoid / tentacled"},{"min":68,"max":72,"text":"Plant / fungus"},{"min":73,"max":82,"text":"Ray / flat-bodied"},{"min":83,"max":84,"text":"Snake / eel"},{"min":85,"max":86,"text":"Spider / web-weaver"},{"min":87,"max":88,"text":"Starfish / symmetrical"},{"min":89,"max":90,"text":"Worm / slug / larva"},{"min":91,"max":100,"text":"Roll twice"}]},"interior":{"name":"Interior","dice":"1d100","rows":[{"min":1,"max":3,"text":"Amoeba / pseudopods"},{"min":4,"max":6,"text":"Amorphous / elemental"},{"min":7,"max":12,"text":"Avian / winged"},{"min":13,"max":19,"text":"Beast / mammal"},{"min":20,"max":22,"text":"Crustacean / shelled"},{"min":23,"max":24,"text":"Fish / torpedo-shaped"},{"min":25,"max":37,"text":"Humanoid / bipedal"},{"min":38,"max":49,"text":"Insectoid / exoskeletal"},{"min":50,"max":51,"text":"Jellyfish / gasbag"},{"min":52,"max":56,"text":"Lizard / reptilian"},{"min":57,"max":58,"text":"Octopoid / tentacled"},{"min":59,"max":63,"text":"Plant / fungus"},{"min":64,"max":65,"text":"Ray / flat-bodied"},{"min":66,"max":68,"text":"Snake / eel"},{"min":69,"max":83,"text":"Spider / web-weaver"},{"min":84,"max":85,"text":"Starfish / symmetrical"},{"min":86,"max":90,"text":"Worm / slug / larva"},{"min":91,"max":100,"text":"Roll twice"}]},"land":{"name":"Land","dice":"1d100","rows":[{"min":1,"max":2,"text":"Amoeba / pseudopods"},{"min":3,"max":5,"text":"Amorphous / elemental"},{"min":6,"max":10,"text":"Avian / winged"},{"min":11,"max":25,"text":"Beast / mammal"},{"min":26,"max":32,"text":"Crustacean / shelled"},{"min":33,"max":34,"text":"Fish / torpedo-shaped"},{"min":35,"max":39,"text":"Humanoid / bipedal"},{"min":40,"max":49,"text":"Insectoid / exoskeletal"},{"min":50,"max":51,"text":"Jellyfish / gasbag"},{"min":52,"max":58,"text":"Lizard / reptilian"},{"min":59,"max":60,"text":"Octopoid / tentacled"},{"min":61,"max":65,"text":"Plant / fungus"},{"min":66,"max":67,"text":"Ray / flat-bodied"},{"min":68,"max":74,"text":"Snake / eel"},{"min":75,"max":81,"text":"Spider / web-weaver"},{"min":82,"max":83,"text":"Starfish / symmetrical"},{"min":84,"max":90,"text":"Worm / slug / larva"},{"min":91,"max":100,"text":"Roll twice"}]},"liquid":{"name":"Liquid","dice":"1d100","rows":[{"min":1,"max":5,"text":"Amoeba / pseudopods"},{"min":6,"max":8,"text":"Amorphous / elemental"},{"min":9,"max":11,"text":"Avian / winged"},{"min":12,"max":17,"text":"Beast / mammal"},{"min":18,"max":24,"text":"Crustacean / shelled"},{"min":25,"max":39,"text":"Fish / torpedo-shaped"},{"min":40,"max":42,"text":"Humanoid / bipedal"},{"min":43,"max":45,"text":"Insectoid / exoskeletal"},{"min":46,"max":53,"text":"Jellyfish / gasbag"},{"min":54,"max":56,"text":"Lizard / reptilian"},{"min":57,"max":63,"text":"Octopoid / tentacled"},{"min":64,"max":68,"text":"Plant / fungus"},{"min":69,"max":75,"text":"Ray / flat-bodied"},{"min":76,"max":80,"text":"Snake / eel"},{"min":81,"max":82,"text":"Spider / web-weaver"},{"min":83,"max":87,"text":"Starfish / symmetrical"},{"min":88,"max":90,"text":"Worm / slug / larva"},{"min":91,"max":100,"text":"Roll twice"}]},"air":{"name":"Air","dice":"1d100","rows":[{"min":1,"max":2,"text":"Amoeba / pseudopods"},{"min":3,"max":12,"text":"Amorphous / elemental"},{"min":13,"max":37,"text":"Avian / winged"},{"min":38,"max":40,"text":"Beast / mammal"},{"min":41,"max":42,"text":"Crustacean / shelled"},{"min":43,"max":47,"text":"Fish / torpedo-shaped"},{"min":48,"max":49,"text":"Humanoid / bipedal"},{"min":50,"max":51,"text":"Insectoid / exoskeletal"},{"min":52,"max":66,"text":"Jellyfish / gasbag"},{"min":67,"max":68,"text":"Lizard / reptilian"},{"min":69,"max":70,"text":"Octopoid / tentacled"},{"min":71,"max":72,"text":"Plant / fungus"},{"min":73,"max":82,"text":"Ray / flat-bodied"},{"min":83,"max":84,"text":"Snake / eel"},{"min":85,"max":86,"text":"Spider / web-weaver"},{"min":87,"max":88,"text":"Starfish / symmetrical"},{"min":89,"max":90,"text":"Worm / slug / larva"},{"min":91,"max":100,"text":"Roll twice"}]}};
+
+    const log = document.getElementById('log');
+    const grid = document.getElementById('grid');
+    let first = true;
+
+    function logCard(spec) {
+      if (first) { log.innerHTML = ''; first = false; }
+      appendCard(log, spec);
+    }
+
+    function rollSingle(table, label, withRoll) {
+      const { roll, text } = rollTable(table);
+      logCard({ total: text, detailText: withRoll ? 'rolled ' + roll : null });
+      reportToNative(label + ': ' + text, text.slice(0, 4));
+    }
+
+    // For a table_text2 table (a result plus a summary column) - shows the
+    // summary as the detail line instead of the roll number.
+    function rollSingle2(table, label) {
+      const { text, row } = rollTable(table);
+      logCard({ total: text, detailText: row.text2 || null });
+      reportToNative(label + ': ' + text, text.slice(0, 4));
+    }
+
+
+    const ORACLES = {
+      creature: {
+        label: "Creature",
+        hint: "Roll to build an encountered creature.",
+        buildTiles: () => [
+          { label: "Environment", handler: () => rollSingle(CREATURE_TABLES.environment, "Environment", true) },
+          { label: "Scale", handler: () => rollSingle(CREATURE_TABLES.scale, "Scale", true) },
+          { label: "Ultra-scale", handler: () => rollSingle(CREATURE_TABLES.ultra_scale, "Ultra-scale", true) },
+          { label: "Creature First Look", handler: () => rollSingle(CREATURE_TABLES.first_look, "Creature First Look", true) },
+          { label: "Encountered Behavior", handler: () => rollSingle(CREATURE_TABLES.encountered_behavior, "Encountered Behavior", true) },
+          { label: "Revealed Creature Aspect", handler: () => rollSingle(CREATURE_TABLES.revealed_aspect, "Revealed Creature Aspect", true) }
+        ],
+      },
+      basic_form: {
+        label: "Basic Form",
+        hint: "Roll a creature's basic form by environment.",
+        buildTiles: () => [
+          { label: "Space", handler: () => rollSingle(BASIC_FORM_TABLES.space, "Space", true) },
+          { label: "Interior", handler: () => rollSingle(BASIC_FORM_TABLES.interior, "Interior", true) },
+          { label: "Land", handler: () => rollSingle(BASIC_FORM_TABLES.land, "Land", true) },
+          { label: "Liquid", handler: () => rollSingle(BASIC_FORM_TABLES.liquid, "Liquid", true) },
+          { label: "Air", handler: () => rollSingle(BASIC_FORM_TABLES.air, "Air", true) }
+        ],
+      },
+    };
+
+    function renderOracle(key) {
+      grid.innerHTML = '';
+      initOracleGrid(grid, ORACLES[key].buildTiles());
+      if (first) {
+        log.innerHTML = '<div class="empty">' + ORACLES[key].hint + '</div>';
+      }
+    }
+
+    const oracleTrigger = document.getElementById('oracleTrigger');
+    const oracleTriggerLabel = document.getElementById('oracleTriggerLabel');
+    const oracleMenu = document.getElementById('oracleMenu');
+
+    function openOracleMenu() {
+      oracleMenu.hidden = false;
+      oracleTrigger.setAttribute('aria-expanded', 'true');
+      document.addEventListener('click', handleOracleMenuOutsideClick, { capture: true });
+    }
+    function closeOracleMenu() {
+      oracleMenu.hidden = true;
+      oracleTrigger.setAttribute('aria-expanded', 'false');
+      document.removeEventListener('click', handleOracleMenuOutsideClick, { capture: true });
+    }
+    function handleOracleMenuOutsideClick(e) {
+      if (!oracleMenu.contains(e.target) && e.target !== oracleTrigger) closeOracleMenu();
+    }
+    oracleTrigger.addEventListener('click', () => {
+      if (oracleMenu.hidden) openOracleMenu(); else closeOracleMenu();
+    });
+
+    function selectOracle(key) {
+      oracleTriggerLabel.textContent = ORACLES[key].label;
+      oracleMenu.querySelectorAll('.oracle-menu-item').forEach((item) => {
+        item.setAttribute('aria-selected', item.dataset.key === key ? 'true' : 'false');
+      });
+      renderOracle(key);
+    }
+    oracleMenu.querySelectorAll('.oracle-menu-item').forEach((item) => {
+      item.addEventListener('click', () => {
+        selectOracle(item.dataset.key);
+        closeOracleMenu();
+      });
+    });
+
+    selectOracle('creature');
+
+  </script>
+</body>
+</html>

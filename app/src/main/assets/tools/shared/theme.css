@@ -100,6 +100,15 @@ body { display: flex; flex-direction: column; }
   gap: 10px;
   border-left: 4px solid var(--gem, var(--gem-d12));
 }
+/* A short dice total ("17") or oracle word ("Attack") sits inline next to
+   its label/detail - that's the tight, compact case this was designed for.
+   A longer oracle result (Starforged has full-sentence rows, some past 200
+   characters) doesn't fit that mold: capping its width and letting it wrap
+   still squeezed the label/detail pip into an unreadably narrow sliver
+   beside it, so past a length threshold (see appendCard) the whole card
+   stacks instead - total on its own line(s), meta below at full width. */
+.card.stacked { flex-direction: column; align-items: stretch; gap: 4px; }
+.card.stacked .card-total { max-width: 100%; }
 .card.enter { animation: popIn 380ms cubic-bezier(.34,1.56,.64,1); }
 @keyframes popIn {
   0% { opacity: 0; transform: scale(0.55) translateY(6px); }
@@ -110,11 +119,23 @@ body { display: flex; flex-direction: column; }
   font-family: "Unbounded", sans-serif;
   font-weight: 700;
   font-size: 1.4rem;
+  line-height: 1.25;
   color: var(--gem, var(--gem-d12));
-  flex: 0 0 auto;
+  /* flex-shrink:1 + max-width, not flex-shrink:0 - a total just under the
+     stacking threshold (see appendCard) still has to fit beside its label
+     without overflowing the panel, so it needs to be able to wrap too. */
+  flex: 0 1 auto;
+  max-width: 68%;
+  min-width: 0;
+  overflow-wrap: break-word;
   font-variant-numeric: tabular-nums;
 }
-.card-meta { min-width: 0; }
+/* Length-tiered sizing (set by appendCard, based on the result text's own
+   length) - a paragraph-length oracle row at 1.4rem "Unbounded" would
+   dominate the card even stacked and wrapped. */
+.card-total.card-total-md { font-size: 1.05rem; font-weight: 600; }
+.card-total.card-total-sm { font-size: 0.88rem; font-weight: 600; line-height: 1.35; }
+.card-meta { min-width: 0; flex: 1 1 auto; }
 .card-label {
   font-family: "Figtree", sans-serif;
   font-weight: 600;

@@ -1,0 +1,206 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Starforged Settlement Oracles</title>
+<script src="../shared/bubble.js"></script>
+<link rel="stylesheet" href="../shared/theme.css">
+<style>
+  #grid { grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); }
+  .oracle-picker {
+    position: relative;
+    flex: 0 0 auto;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .oracle-trigger {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: var(--card);
+    border: 1.5px solid var(--line);
+    border-radius: 999px;
+    padding: 10px 16px;
+    font-family: "Figtree", sans-serif;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .oracle-trigger:focus {
+    outline: none;
+    border-color: var(--gem-d12);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--gem-d12) 25%, transparent);
+  }
+  .oracle-chevron { width: 16px; height: 16px; color: var(--muted); flex: 0 0 auto; transition: transform 160ms ease; }
+  .oracle-trigger[aria-expanded="true"] .oracle-chevron { transform: rotate(180deg); }
+  .oracle-menu {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    top: 100%;
+    margin-top: 6px;
+    background: var(--card);
+    border: 1.5px solid var(--line);
+    border-radius: 14px;
+    padding: 6px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+    z-index: 5;
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+  .oracle-menu[hidden] { display: none; }
+  .oracle-menu-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-family: "Figtree", sans-serif;
+    font-weight: 600;
+    font-size: 0.88rem;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .oracle-menu-item[aria-selected="true"] { color: var(--gem-d12); }
+  .oracle-menu-item:hover, .oracle-menu-item:focus {
+    outline: none;
+    background: color-mix(in srgb, var(--gem-d12) 14%, var(--card));
+  }
+</style>
+</head>
+<body>
+  <noscript>
+    <div style="padding:16px;font-family:system-ui,sans-serif;">
+      <h2>Starforged Settlement Oracles</h2>
+      <p>This tool needs JavaScript, which is currently disabled in this WebView.</p>
+      <p>That shouldn't happen - the app enables it itself. Please report this bug.</p>
+    </div>
+  </noscript>
+
+  <div class="oracle-picker">
+    <button id="oracleTrigger" class="oracle-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
+      <span id="oracleTriggerLabel">Settlement</span>
+      <svg class="oracle-chevron" viewBox="0 0 24 24" fill="none"><polyline points="6 9 12 15 18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div id="oracleMenu" class="oracle-menu" role="listbox" aria-label="Oracle" hidden>
+      <button type="button" class="oracle-menu-item" data-key="settlement" role="option" aria-selected="true">Settlement</button>
+      <button type="button" class="oracle-menu-item" data-key="population" role="option" aria-selected="false">Population</button>
+    </div>
+  </div>
+  <div id="log"></div>
+  <div id="grid"></div>
+
+  <script src="../shared/oracle.js"></script>
+  <script>
+    // Ironsworn: Starforged oracles, by Shawn Tomkin - CC BY 4.0
+    // (https://creativecommons.org/licenses/by/4.0). Sourced from Datasworn
+    // (https://github.com/rsek/datasworn). Rows are {min, max, text}; roll
+    // the table's die and find the row whose range contains it.
+
+const SETTLEMENT_TABLES = {"location":{"name":"Location","dice":"1d100","rows":[{"min":1,"max":40,"text":"Planetside"},{"min":41,"max":75,"text":"Orbital"},{"min":76,"max":100,"text":"Deep Space"}]},"first_look":{"name":"First Look","dice":"1d100","rows":[{"min":1,"max":3,"text":"Beautiful architecture"},{"min":4,"max":9,"text":"Built from organic materials"},{"min":10,"max":15,"text":"Built from random scrap"},{"min":16,"max":21,"text":"Built within repurposed ship"},{"min":22,"max":26,"text":"Built within terrain or asteroid"},{"min":27,"max":31,"text":"Defensible location"},{"min":32,"max":35,"text":"Elevated or multi-level construction"},{"min":36,"max":40,"text":"Hidden or subsurface location"},{"min":41,"max":43,"text":"High-tech construction"},{"min":44,"max":49,"text":"Industrial architecture"},{"min":50,"max":53,"text":"Intimidating defenses"},{"min":54,"max":56,"text":"Moving or transforming"},{"min":57,"max":61,"text":"Obvious social stratification"},{"min":62,"max":66,"text":"Precarious location"},{"min":67,"max":72,"text":"Rustic architecture"},{"min":73,"max":76,"text":"Significant structural damage"},{"min":77,"max":80,"text":"Sprawling or dispersed structures"},{"min":81,"max":83,"text":"Temporary or seasonal location"},{"min":84,"max":87,"text":"Toxic or polluted habitat"},{"min":88,"max":90,"text":"Within or near Precursor Vault"},{"min":91,"max":100,"text":"Descriptor + Focus"}]},"initial_contact":{"name":"Initial Contact","dice":"1d100","rows":[{"min":1,"max":20,"text":"Welcoming"},{"min":21,"max":30,"text":"Neutral / automated"},{"min":31,"max":50,"text":"Wary"},{"min":51,"max":60,"text":"Uncooperative"},{"min":61,"max":70,"text":"Hostile"},{"min":71,"max":83,"text":"Asking for help"},{"min":84,"max":86,"text":"In battle"},{"min":87,"max":89,"text":"Captured"},{"min":90,"max":92,"text":"Unresponsive"},{"min":93,"max":95,"text":"Destroyed"},{"min":96,"max":100,"text":"Derelict"}]},"authority":{"name":"Authority","dice":"1d100","rows":[{"min":1,"max":15,"text":"None / lawless"},{"min":16,"max":30,"text":"Ineffectual"},{"min":31,"max":45,"text":"Tolerant"},{"min":46,"max":55,"text":"Fair"},{"min":56,"max":70,"text":"Unyielding"},{"min":71,"max":85,"text":"Corrupt"},{"min":86,"max":100,"text":"Oppressive"}]},"projects":{"name":"Settlement Projects","dice":"1d100","rows":[{"min":1,"max":5,"text":"Agriculture"},{"min":6,"max":7,"text":"Archeology"},{"min":8,"max":9,"text":"Automation"},{"min":10,"max":11,"text":"Black market"},{"min":12,"max":13,"text":"Command"},{"min":14,"max":17,"text":"Defense"},{"min":18,"max":22,"text":"Energy"},{"min":23,"max":25,"text":"Engineering"},{"min":26,"max":27,"text":"Entertainment"},{"min":28,"max":29,"text":"Environmentalism"},{"min":30,"max":31,"text":"Evacuation"},{"min":32,"max":33,"text":"Expansion"},{"min":34,"max":37,"text":"Exploration"},{"min":38,"max":39,"text":"Festival"},{"min":40,"max":41,"text":"History"},{"min":42,"max":43,"text":"Hunting"},{"min":44,"max":46,"text":"Manufacturing"},{"min":47,"max":49,"text":"Medical"},{"min":50,"max":51,"text":"Migration"},{"min":52,"max":57,"text":"Mining"},{"min":58,"max":59,"text":"Pacifism"},{"min":60,"max":62,"text":"Raiding"},{"min":63,"max":65,"text":"Research"},{"min":66,"max":69,"text":"Salvage"},{"min":70,"max":72,"text":"Secrecy"},{"min":73,"max":75,"text":"Shipbuilding"},{"min":76,"max":78,"text":"Spirituality"},{"min":79,"max":84,"text":"Subsistence"},{"min":85,"max":86,"text":"Surveillance"},{"min":87,"max":88,"text":"Terraforming"},{"min":89,"max":92,"text":"Trade"},{"min":93,"max":95,"text":"Warfare"},{"min":96,"max":100,"text":"Action + Theme"}]},"trouble":{"name":"Settlement Trouble","dice":"1d100","rows":[{"min":1,"max":3,"text":"Battle for leadership"},{"min":4,"max":6,"text":"Betrayal from within"},{"min":7,"max":8,"text":"Caught in the crossfire"},{"min":9,"max":11,"text":"Changing environment"},{"min":12,"max":13,"text":"Clash of cultures"},{"min":14,"max":17,"text":"Dangerous discovery"},{"min":18,"max":21,"text":"Depleted supplies"},{"min":22,"max":24,"text":"Deprived of a resource"},{"min":25,"max":28,"text":"Failing technology"},{"min":29,"max":32,"text":"Feuding factions"},{"min":33,"max":34,"text":"Ghostly visitations"},{"min":35,"max":38,"text":"Hazardous environment"},{"min":39,"max":42,"text":"Hostile lifeforms"},{"min":43,"max":45,"text":"Impassable route"},{"min":46,"max":48,"text":"Impending attack"},{"min":49,"max":51,"text":"Impending natural disaster"},{"min":52,"max":53,"text":"Invasive organisms"},{"min":54,"max":55,"text":"Mounting debt"},{"min":56,"max":57,"text":"Mysterious deaths"},{"min":58,"max":60,"text":"Overdue delivery"},{"min":61,"max":62,"text":"Plagued by sickness"},{"min":63,"max":65,"text":"Preyed upon by raiders"},{"min":66,"max":67,"text":"Revolt against leadership"},{"min":68,"max":69,"text":"Sabotaged technology"},{"min":70,"max":71,"text":"Shunned by others"},{"min":72,"max":74,"text":"Social strife"},{"min":75,"max":76,"text":"Someone is ill or injured"},{"min":77,"max":78,"text":"Someone is missing"},{"min":79,"max":80,"text":"Stolen technology or object"},{"min":81,"max":83,"text":"Strange phenomenon"},{"min":84,"max":86,"text":"Toxic waste or pollution"},{"min":87,"max":88,"text":"Volatile energy source"},{"min":89,"max":90,"text":"Vulnerable lifeforms"},{"min":91,"max":100,"text":"Action + Theme"}]},"name":{"name":"Settlement Name","dice":"1d100","rows":[{"min":1,"max":1,"text":"Aegis"},{"min":2,"max":2,"text":"Altair"},{"min":3,"max":3,"text":"Altura"},{"min":4,"max":4,"text":"Amity"},{"min":5,"max":5,"text":"Apex"},{"min":6,"max":6,"text":"Apogee"},{"min":7,"max":7,"text":"Argosy"},{"min":8,"max":8,"text":"Astra"},{"min":9,"max":9,"text":"Aurora"},{"min":10,"max":10,"text":"Beacon"},{"min":11,"max":11,"text":"Brink"},{"min":12,"max":12,"text":"Bulwark"},{"min":13,"max":13,"text":"Burnell"},{"min":14,"max":14,"text":"Burrow"},{"min":15,"max":15,"text":"Concord"},{"min":16,"max":16,"text":"Crux"},{"min":17,"max":17,"text":"Deadrock"},{"min":18,"max":18,"text":"Deception"},{"min":19,"max":19,"text":"Elysium"},{"min":20,"max":20,"text":"Enigma"},{"min":21,"max":21,"text":"Erebus"},{"min":22,"max":22,"text":"Eris"},{"min":23,"max":23,"text":"Evenfall"},{"min":24,"max":24,"text":"Eventide"},{"min":25,"max":25,"text":"Farpoint"},{"min":26,"max":26,"text":"Felicity"},{"min":27,"max":27,"text":"Florin"},{"min":28,"max":28,"text":"Forlorn"},{"min":29,"max":29,"text":"Forsaken"},{"min":30,"max":30,"text":"Freya"},{"min":31,"max":31,"text":"Glimmer"},{"min":32,"max":32,"text":"Gloam"},{"min":33,"max":33,"text":"Hearth"},{"min":34,"max":34,"text":"Helia"},{"min":35,"max":35,"text":"Hypatia"},{"min":36,"max":36,"text":"Hyperion"},{"min":37,"max":37,"text":"Janus"},{"min":38,"max":38,"text":"Karma"},{"min":39,"max":39,"text":"Kepler"},{"min":40,"max":40,"text":"Koshiba"},{"min":41,"max":41,"text":"Lagrange"},{"min":42,"max":42,"text":"Larissa"},{"min":43,"max":43,"text":"Lasthope"},{"min":44,"max":44,"text":"Lastport"},{"min":45,"max":45,"text":"Legacy"},{"min":46,"max":46,"text":"Lodestar"},{"min":47,"max":47,"text":"Luminus"},{"min":48,"max":48,"text":"Lyra"},{"min":49,"max":49,"text":"Marrow"},{"min":50,"max":50,"text":"Meridian"},{"min":51,"max":51,"text":"Moirai"},{"min":52,"max":52,"text":"Mudd"},{"min":53,"max":53,"text":"Neoma"},{"min":54,"max":54,"text":"Nerio"},{"min":55,"max":55,"text":"Nova"},{"min":56,"max":56,"text":"Nyx"},{"min":57,"max":57,"text":"Osseus"},{"min":58,"max":58,"text":"Paradox"},{"min":59,"max":59,"text":"Paragon"},{"min":60,"max":60,"text":"Paxton"},{"min":61,"max":61,"text":"Perchance"},{"min":62,"max":62,"text":"Pinnacle"},{"min":63,"max":63,"text":"Polaris"},{"min":64,"max":64,"text":"Portent"},{"min":65,"max":65,"text":"Prism"},{"min":66,"max":66,"text":"Providence"},{"min":67,"max":67,"text":"Purgatory"},{"min":68,"max":68,"text":"Rampart"},{"min":69,"max":69,"text":"Ramshackle"},{"min":70,"max":70,"text":"Redemption"},{"min":71,"max":71,"text":"Redhaven"},{"min":72,"max":72,"text":"Relic"},{"min":73,"max":73,"text":"Reprise"},{"min":74,"max":74,"text":"Reverie"},{"min":75,"max":75,"text":"Rhiannon"},{"min":76,"max":76,"text":"Rockhome"},{"min":77,"max":77,"text":"Rust"},{"min":78,"max":78,"text":"Sagan"},{"min":79,"max":79,"text":"Sanctity"},{"min":80,"max":80,"text":"Selena"},{"min":81,"max":81,"text":"Sepulcher"},{"min":82,"max":82,"text":"Sigil"},{"min":83,"max":83,"text":"Silvana"},{"min":84,"max":84,"text":"Sirius"},{"min":85,"max":85,"text":"Sisyphus"},{"min":86,"max":86,"text":"Solitude"},{"min":87,"max":87,"text":"Spire"},{"min":88,"max":88,"text":"Starfall"},{"min":89,"max":89,"text":"Summit"},{"min":90,"max":90,"text":"Tranquility"},{"min":91,"max":91,"text":"Tyson"},{"min":92,"max":92,"text":"Unity"},{"min":93,"max":93,"text":"Utopia"},{"min":94,"max":94,"text":"Vega"},{"min":95,"max":95,"text":"Vesper"},{"min":96,"max":96,"text":"Wayward"},{"min":97,"max":97,"text":"Welkin"},{"min":98,"max":98,"text":"Wellspring"},{"min":99,"max":99,"text":"Weyland"},{"min":100,"max":100,"text":"Wreck"}]},"name_tags":{"name":"Name tags","dice":"1d10","rows":[{"min":1,"max":1,"text":"Base"},{"min":2,"max":2,"text":"Citadel"},{"min":3,"max":3,"text":"Depot"},{"min":4,"max":4,"text":"Fortress"},{"min":5,"max":5,"text":"Hold"},{"min":6,"max":6,"text":"Landing"},{"min":7,"max":7,"text":"Outpost"},{"min":8,"max":8,"text":"Port"},{"min":9,"max":9,"text":"Station"},{"min":10,"max":10,"text":"Terminal"}]}};
+const POPULATION_TABLES = {"terminus":{"name":"Terminus","dice":"1d100","rows":[{"min":1,"max":10,"text":"Few"},{"min":11,"max":25,"text":"Dozens"},{"min":26,"max":55,"text":"Hundreds"},{"min":56,"max":85,"text":"Thousands"},{"min":86,"max":100,"text":"Tens of thousands"}]},"outlands":{"name":"Outlands","dice":"1d100","rows":[{"min":1,"max":15,"text":"Few"},{"min":16,"max":35,"text":"Dozens"},{"min":36,"max":65,"text":"Hundreds"},{"min":66,"max":90,"text":"Thousands"},{"min":91,"max":100,"text":"Tens of thousands"}]},"expanse":{"name":"Expanse","dice":"1d100","rows":[{"min":1,"max":20,"text":"Few"},{"min":21,"max":50,"text":"Dozens"},{"min":51,"max":80,"text":"Hundreds"},{"min":81,"max":95,"text":"Thousands"},{"min":96,"max":100,"text":"Tens of thousands"}]}};
+
+    const log = document.getElementById('log');
+    const grid = document.getElementById('grid');
+    let first = true;
+
+    function logCard(spec) {
+      if (first) { log.innerHTML = ''; first = false; }
+      appendCard(log, spec);
+    }
+
+    function rollSingle(table, label, withRoll) {
+      const { roll, text } = rollTable(table);
+      logCard({ total: text, detailText: withRoll ? 'rolled ' + roll : null });
+      reportToNative(label + ': ' + text, text.slice(0, 4));
+    }
+
+    // For a table_text2 table (a result plus a summary column) - shows the
+    // summary as the detail line instead of the roll number.
+    function rollSingle2(table, label) {
+      const { text, row } = rollTable(table);
+      logCard({ total: text, detailText: row.text2 || null });
+      reportToNative(label + ': ' + text, text.slice(0, 4));
+    }
+
+
+    const ORACLES = {
+      settlement: {
+        label: "Settlement",
+        hint: "Roll to sketch a settlement.",
+        buildTiles: () => [
+          { label: "Location", handler: () => rollSingle(SETTLEMENT_TABLES.location, "Location", true) },
+          { label: "First Look", handler: () => rollSingle(SETTLEMENT_TABLES.first_look, "First Look", true) },
+          { label: "Initial Contact", handler: () => rollSingle(SETTLEMENT_TABLES.initial_contact, "Initial Contact", true) },
+          { label: "Authority", handler: () => rollSingle(SETTLEMENT_TABLES.authority, "Authority", true) },
+          { label: "Settlement Projects", handler: () => rollSingle(SETTLEMENT_TABLES.projects, "Settlement Projects", true) },
+          { label: "Settlement Trouble", handler: () => rollSingle(SETTLEMENT_TABLES.trouble, "Settlement Trouble", true) },
+          { label: "Settlement Name", handler: () => rollSingle(SETTLEMENT_TABLES.name, "Settlement Name", true) },
+          { label: "Name tags", handler: () => rollSingle(SETTLEMENT_TABLES.name_tags, "Name tags", true) }
+        ],
+      },
+      population: {
+        label: "Population",
+        hint: "Roll population size by how far from known space you are.",
+        buildTiles: () => [
+          { label: "Terminus", handler: () => rollSingle(POPULATION_TABLES.terminus, "Terminus", true) },
+          { label: "Outlands", handler: () => rollSingle(POPULATION_TABLES.outlands, "Outlands", true) },
+          { label: "Expanse", handler: () => rollSingle(POPULATION_TABLES.expanse, "Expanse", true) }
+        ],
+      },
+    };
+
+    function renderOracle(key) {
+      grid.innerHTML = '';
+      initOracleGrid(grid, ORACLES[key].buildTiles());
+      if (first) {
+        log.innerHTML = '<div class="empty">' + ORACLES[key].hint + '</div>';
+      }
+    }
+
+    const oracleTrigger = document.getElementById('oracleTrigger');
+    const oracleTriggerLabel = document.getElementById('oracleTriggerLabel');
+    const oracleMenu = document.getElementById('oracleMenu');
+
+    function openOracleMenu() {
+      oracleMenu.hidden = false;
+      oracleTrigger.setAttribute('aria-expanded', 'true');
+      document.addEventListener('click', handleOracleMenuOutsideClick, { capture: true });
+    }
+    function closeOracleMenu() {
+      oracleMenu.hidden = true;
+      oracleTrigger.setAttribute('aria-expanded', 'false');
+      document.removeEventListener('click', handleOracleMenuOutsideClick, { capture: true });
+    }
+    function handleOracleMenuOutsideClick(e) {
+      if (!oracleMenu.contains(e.target) && e.target !== oracleTrigger) closeOracleMenu();
+    }
+    oracleTrigger.addEventListener('click', () => {
+      if (oracleMenu.hidden) openOracleMenu(); else closeOracleMenu();
+    });
+
+    function selectOracle(key) {
+      oracleTriggerLabel.textContent = ORACLES[key].label;
+      oracleMenu.querySelectorAll('.oracle-menu-item').forEach((item) => {
+        item.setAttribute('aria-selected', item.dataset.key === key ? 'true' : 'false');
+      });
+      renderOracle(key);
+    }
+    oracleMenu.querySelectorAll('.oracle-menu-item').forEach((item) => {
+      item.addEventListener('click', () => {
+        selectOracle(item.dataset.key);
+        closeOracleMenu();
+      });
+    });
+
+    selectOracle('settlement');
+
+  </script>
+</body>
+</html>

@@ -1,0 +1,229 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Starforged Character Oracles</title>
+<script src="../shared/bubble.js"></script>
+<link rel="stylesheet" href="../shared/theme.css">
+<style>
+  #grid { grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); }
+  .oracle-picker {
+    position: relative;
+    flex: 0 0 auto;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .oracle-trigger {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: var(--card);
+    border: 1.5px solid var(--line);
+    border-radius: 999px;
+    padding: 10px 16px;
+    font-family: "Figtree", sans-serif;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .oracle-trigger:focus {
+    outline: none;
+    border-color: var(--gem-d12);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--gem-d12) 25%, transparent);
+  }
+  .oracle-chevron { width: 16px; height: 16px; color: var(--muted); flex: 0 0 auto; transition: transform 160ms ease; }
+  .oracle-trigger[aria-expanded="true"] .oracle-chevron { transform: rotate(180deg); }
+  .oracle-menu {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    top: 100%;
+    margin-top: 6px;
+    background: var(--card);
+    border: 1.5px solid var(--line);
+    border-radius: 14px;
+    padding: 6px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+    z-index: 5;
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+  .oracle-menu[hidden] { display: none; }
+  .oracle-menu-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-family: "Figtree", sans-serif;
+    font-weight: 600;
+    font-size: 0.88rem;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .oracle-menu-item[aria-selected="true"] { color: var(--gem-d12); }
+  .oracle-menu-item:hover, .oracle-menu-item:focus {
+    outline: none;
+    background: color-mix(in srgb, var(--gem-d12) 14%, var(--card));
+  }
+</style>
+</head>
+<body>
+  <noscript>
+    <div style="padding:16px;font-family:system-ui,sans-serif;">
+      <h2>Starforged Character Oracles</h2>
+      <p>This tool needs JavaScript, which is currently disabled in this WebView.</p>
+      <p>That shouldn't happen - the app enables it itself. Please report this bug.</p>
+    </div>
+  </noscript>
+
+  <div class="oracle-picker">
+    <button id="oracleTrigger" class="oracle-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
+      <span id="oracleTriggerLabel">Character</span>
+      <svg class="oracle-chevron" viewBox="0 0 24 24" fill="none"><polyline points="6 9 12 15 18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div id="oracleMenu" class="oracle-menu" role="listbox" aria-label="Oracle" hidden>
+      <button type="button" class="oracle-menu-item" data-key="character" role="option" aria-selected="true">Character</button>
+      <button type="button" class="oracle-menu-item" data-key="name" role="option" aria-selected="false">Character Name</button>
+      <button type="button" class="oracle-menu-item" data-key="campaign" role="option" aria-selected="false">Campaign Launch</button>
+    </div>
+  </div>
+  <div id="log"></div>
+  <div id="grid"></div>
+
+  <script src="../shared/oracle.js"></script>
+  <script>
+    // Ironsworn: Starforged oracles, by Shawn Tomkin - CC BY 4.0
+    // (https://creativecommons.org/licenses/by/4.0). Sourced from Datasworn
+    // (https://github.com/rsek/datasworn). Rows are {min, max, text}; roll
+    // the table's die and find the row whose range contains it.
+
+const CHARACTER_TABLES = {"first_look":{"name":"First Look","dice":"1d100","rows":[{"min":1,"max":3,"text":"Accented"},{"min":4,"max":6,"text":"Accompanied"},{"min":7,"max":8,"text":"Adorned"},{"min":9,"max":11,"text":"Aged"},{"min":12,"max":13,"text":"Alluring"},{"min":14,"max":15,"text":"Armed"},{"min":16,"max":17,"text":"Armored"},{"min":18,"max":20,"text":"Athletic"},{"min":21,"max":23,"text":"Attractive"},{"min":24,"max":25,"text":"Augmented"},{"min":26,"max":27,"text":"Concealed"},{"min":28,"max":30,"text":"Distracted"},{"min":31,"max":33,"text":"Eccentric"},{"min":34,"max":35,"text":"Energetic"},{"min":36,"max":37,"text":"Flashy"},{"min":38,"max":40,"text":"Graceful"},{"min":41,"max":43,"text":"Grim"},{"min":44,"max":46,"text":"Haggard"},{"min":47,"max":49,"text":"Ill-equipped"},{"min":50,"max":52,"text":"Imposing"},{"min":53,"max":55,"text":"Large"},{"min":56,"max":57,"text":"Mutated"},{"min":58,"max":60,"text":"Plain"},{"min":61,"max":62,"text":"Poised"},{"min":63,"max":65,"text":"Scarred"},{"min":66,"max":68,"text":"Scruffy"},{"min":69,"max":71,"text":"Shifty"},{"min":72,"max":73,"text":"Sickly"},{"min":74,"max":76,"text":"Slight"},{"min":77,"max":78,"text":"Swaggering"},{"min":79,"max":81,"text":"Tattooed"},{"min":82,"max":83,"text":"Threatened"},{"min":84,"max":85,"text":"Uncanny"},{"min":86,"max":87,"text":"Visibly disabled"},{"min":88,"max":90,"text":"Weathered"},{"min":91,"max":92,"text":"Well-equipped"},{"min":93,"max":95,"text":"Wiry"},{"min":96,"max":97,"text":"Wounded"},{"min":98,"max":100,"text":"Youthful"}]},"initial_disposition":{"name":"Initial Disposition","dice":"1d100","rows":[{"min":1,"max":6,"text":"Helpful"},{"min":7,"max":14,"text":"Friendly"},{"min":15,"max":22,"text":"Cooperative"},{"min":23,"max":30,"text":"Curious"},{"min":31,"max":40,"text":"Indifferent"},{"min":41,"max":50,"text":"Suspicious"},{"min":51,"max":60,"text":"Wanting"},{"min":61,"max":70,"text":"Desperate"},{"min":71,"max":78,"text":"Demanding"},{"min":79,"max":86,"text":"Unfriendly"},{"min":87,"max":94,"text":"Threatening"},{"min":95,"max":100,"text":"Hostile"}]},"role":{"name":"Character Role","dice":"1d100","rows":[{"min":1,"max":2,"text":"Agent"},{"min":3,"max":4,"text":"AI"},{"min":5,"max":6,"text":"Artisan"},{"min":7,"max":8,"text":"Assassin"},{"min":9,"max":10,"text":"Bounty Hunter"},{"min":11,"max":12,"text":"Courier"},{"min":13,"max":14,"text":"Crew"},{"min":15,"max":16,"text":"Criminal"},{"min":17,"max":18,"text":"Cultist"},{"min":19,"max":20,"text":"Diplomat"},{"min":21,"max":22,"text":"Engineer"},{"min":23,"max":24,"text":"Entertainer"},{"min":25,"max":26,"text":"Explorer"},{"min":27,"max":28,"text":"Farmer"},{"min":29,"max":30,"text":"Fugitive"},{"min":31,"max":32,"text":"Guard"},{"min":33,"max":34,"text":"Guide"},{"min":35,"max":36,"text":"Healer"},{"min":37,"max":38,"text":"Historian"},{"min":39,"max":40,"text":"Hunter"},{"min":41,"max":42,"text":"Investigator"},{"min":43,"max":44,"text":"Laborer"},{"min":45,"max":46,"text":"Lawkeeper"},{"min":47,"max":48,"text":"Leader"},{"min":49,"max":50,"text":"Mercenary"},{"min":51,"max":52,"text":"Merchant"},{"min":53,"max":54,"text":"Miner"},{"min":55,"max":56,"text":"Mystic"},{"min":57,"max":58,"text":"Navigator"},{"min":59,"max":60,"text":"Outcast"},{"min":61,"max":62,"text":"Pilgrim"},{"min":63,"max":64,"text":"Pilot"},{"min":65,"max":66,"text":"Pirate"},{"min":67,"max":68,"text":"Preacher"},{"min":69,"max":70,"text":"Prophet"},{"min":71,"max":72,"text":"Raider"},{"min":73,"max":74,"text":"Researcher"},{"min":75,"max":76,"text":"Scavenger"},{"min":77,"max":78,"text":"Scholar"},{"min":79,"max":80,"text":"Scout"},{"min":81,"max":82,"text":"Shipwright"},{"min":83,"max":84,"text":"Smuggler"},{"min":85,"max":86,"text":"Soldier"},{"min":87,"max":88,"text":"Spacer"},{"min":89,"max":90,"text":"Technician"},{"min":91,"max":92,"text":"Thief"},{"min":93,"max":95,"text":"Action + Theme"},{"min":96,"max":100,"text":"Roll twice"}]},"goal":{"name":"Character Goal","dice":"1d100","rows":[{"min":1,"max":2,"text":"Avenge a wrong"},{"min":3,"max":4,"text":"Build a home"},{"min":5,"max":7,"text":"Build a relationship"},{"min":8,"max":10,"text":"Claim a resource"},{"min":11,"max":12,"text":"Collect a debt"},{"min":13,"max":14,"text":"Craft an object"},{"min":15,"max":16,"text":"Cure an ill"},{"min":17,"max":18,"text":"Defeat a rival"},{"min":19,"max":20,"text":"Defend a person"},{"min":21,"max":23,"text":"Defend a place"},{"min":24,"max":25,"text":"Discover a truth"},{"min":26,"max":27,"text":"End a conflict"},{"min":28,"max":29,"text":"Escape a captor"},{"min":30,"max":31,"text":"Fight injustice"},{"min":32,"max":33,"text":"Find a person"},{"min":34,"max":35,"text":"Forge an alliance"},{"min":36,"max":37,"text":"Gain knowledge"},{"min":38,"max":39,"text":"Gain riches"},{"min":40,"max":41,"text":"Maintain order"},{"min":42,"max":43,"text":"Make an agreement"},{"min":44,"max":45,"text":"Obtain an object"},{"min":46,"max":47,"text":"Pay a debt"},{"min":48,"max":49,"text":"Protect a lifeform"},{"min":50,"max":51,"text":"Protect a secret"},{"min":52,"max":53,"text":"Prove worthiness"},{"min":54,"max":55,"text":"Rebel against power"},{"min":56,"max":57,"text":"Refute a falsehood"},{"min":58,"max":59,"text":"Repair a technology"},{"min":60,"max":61,"text":"Resolve a dispute"},{"min":62,"max":63,"text":"Restore a relationship"},{"min":64,"max":65,"text":"Sabotage a technology"},{"min":66,"max":68,"text":"Secure a resource"},{"min":69,"max":70,"text":"Seek redemption"},{"min":71,"max":72,"text":"Seize power"},{"min":73,"max":74,"text":"Solve a mystery"},{"min":75,"max":76,"text":"Spread faith"},{"min":77,"max":78,"text":"Travel to a place"},{"min":79,"max":80,"text":"Undermine a relationship"},{"min":81,"max":90,"text":"Action + Theme"},{"min":91,"max":100,"text":"Roll twice"}]},"revealed_aspect":{"name":"Revealed Character Aspect","dice":"1d100","rows":[{"min":1,"max":1,"text":"Addicted"},{"min":2,"max":2,"text":"Adventurous"},{"min":3,"max":3,"text":"Afflicted"},{"min":4,"max":4,"text":"Aggressive"},{"min":5,"max":5,"text":"Ambitious"},{"min":6,"max":6,"text":"Angry"},{"min":7,"max":7,"text":"Anxious"},{"min":8,"max":8,"text":"Apathetic"},{"min":9,"max":9,"text":"Bitter"},{"min":10,"max":10,"text":"Boastful"},{"min":11,"max":11,"text":"Boisterous"},{"min":12,"max":12,"text":"Bold"},{"min":13,"max":13,"text":"Brave"},{"min":14,"max":14,"text":"Careless"},{"min":15,"max":15,"text":"Cautious"},{"min":16,"max":16,"text":"Charismatic"},{"min":17,"max":17,"text":"Clever"},{"min":18,"max":18,"text":"Conceited"},{"min":19,"max":19,"text":"Confident"},{"min":20,"max":20,"text":"Confused"},{"min":21,"max":21,"text":"Connected"},{"min":22,"max":22,"text":"Corrupted"},{"min":23,"max":23,"text":"Cowardly"},{"min":24,"max":24,"text":"Creative"},{"min":25,"max":25,"text":"Critical"},{"min":26,"max":26,"text":"Cruel"},{"min":27,"max":27,"text":"Cunning"},{"min":28,"max":28,"text":"Dangerous"},{"min":29,"max":29,"text":"Deceitful"},{"min":30,"max":30,"text":"Defiant"},{"min":31,"max":31,"text":"Determined"},{"min":32,"max":32,"text":"Disabled"},{"min":33,"max":33,"text":"Doomed"},{"min":34,"max":34,"text":"Driven"},{"min":35,"max":35,"text":"Dying"},{"min":36,"max":36,"text":"Envious"},{"min":37,"max":37,"text":"Experienced"},{"min":38,"max":38,"text":"Faithful"},{"min":39,"max":39,"text":"Generous"},{"min":40,"max":40,"text":"Gifted"},{"min":41,"max":41,"text":"Greedy"},{"min":42,"max":42,"text":"Grief-stricken"},{"min":43,"max":43,"text":"Handy"},{"min":44,"max":44,"text":"Hardhearted"},{"min":45,"max":45,"text":"Haunted"},{"min":46,"max":46,"text":"Honorable"},{"min":47,"max":47,"text":"Hot-tempered"},{"min":48,"max":48,"text":"Impulsive"},{"min":49,"max":49,"text":"Incompetent"},{"min":50,"max":50,"text":"Independent"},{"min":51,"max":51,"text":"Infamous"},{"min":52,"max":52,"text":"Influential"},{"min":53,"max":53,"text":"Insensitive"},{"min":54,"max":54,"text":"Insightful"},{"min":55,"max":55,"text":"Intelligent"},{"min":56,"max":56,"text":"Intolerant"},{"min":57,"max":57,"text":"Ironsworn"},{"min":58,"max":58,"text":"Kind"},{"min":59,"max":59,"text":"Law-abiding"},{"min":60,"max":60,"text":"Lonely"},{"min":61,"max":61,"text":"Loving"},{"min":62,"max":62,"text":"Loyal"},{"min":63,"max":63,"text":"Manipulative"},{"min":64,"max":64,"text":"Oblivious"},{"min":65,"max":65,"text":"Obsessed"},{"min":66,"max":66,"text":"Oppressed"},{"min":67,"max":67,"text":"Passive"},{"min":68,"max":68,"text":"Powerful"},{"min":69,"max":69,"text":"Proud"},{"min":70,"max":70,"text":"Quiet"},{"min":71,"max":71,"text":"Quirky"},{"min":72,"max":72,"text":"Rebellious"},{"min":73,"max":73,"text":"Reclusive"},{"min":74,"max":74,"text":"Relaxed"},{"min":75,"max":75,"text":"Remorseful"},{"min":76,"max":76,"text":"Resourceful"},{"min":77,"max":77,"text":"Secretive"},{"min":78,"max":78,"text":"Selfish"},{"min":79,"max":79,"text":"Sociable"},{"min":80,"max":80,"text":"Stealthy"},{"min":81,"max":81,"text":"Stern"},{"min":82,"max":82,"text":"Stingy"},{"min":83,"max":83,"text":"Stoic"},{"min":84,"max":84,"text":"Strong"},{"min":85,"max":85,"text":"Stubborn"},{"min":86,"max":86,"text":"Successful"},{"min":87,"max":87,"text":"Suspicious"},{"min":88,"max":88,"text":"Talented"},{"min":89,"max":89,"text":"Technical"},{"min":90,"max":90,"text":"Timid"},{"min":91,"max":91,"text":"Tolerant"},{"min":92,"max":92,"text":"Tough"},{"min":93,"max":93,"text":"Vengeful"},{"min":94,"max":94,"text":"Violent"},{"min":95,"max":95,"text":"Wary"},{"min":96,"max":96,"text":"Watchful"},{"min":97,"max":97,"text":"Weak"},{"min":98,"max":98,"text":"Weary"},{"min":99,"max":99,"text":"Wild"},{"min":100,"max":100,"text":"Wise"}]}};
+const NAME_TABLES = {"given":{"name":"Given Name","dice":"1d100","rows":[{"min":1,"max":1,"text":"Akim"},{"min":2,"max":2,"text":"Alex"},{"min":3,"max":3,"text":"Alexis"},{"min":4,"max":4,"text":"Alisa"},{"min":5,"max":5,"text":"Althea"},{"min":6,"max":6,"text":"Amari"},{"min":7,"max":7,"text":"Aparna"},{"min":8,"max":8,"text":"Argus"},{"min":9,"max":9,"text":"Arnav"},{"min":10,"max":10,"text":"Ash"},{"min":11,"max":11,"text":"Asha"},{"min":12,"max":12,"text":"Astrid"},{"min":13,"max":13,"text":"Aurora"},{"min":14,"max":14,"text":"Ayako"},{"min":15,"max":15,"text":"Azriel"},{"min":16,"max":16,"text":"Blake"},{"min":17,"max":17,"text":"Brennan"},{"min":18,"max":18,"text":"Brianna"},{"min":19,"max":19,"text":"Bruna"},{"min":20,"max":20,"text":"Bruno"},{"min":21,"max":21,"text":"Cassidy"},{"min":22,"max":22,"text":"Christa"},{"min":23,"max":23,"text":"Cole"},{"min":24,"max":24,"text":"Corey"},{"min":25,"max":25,"text":"Creed"},{"min":26,"max":26,"text":"Derya"},{"min":27,"max":27,"text":"Dex"},{"min":28,"max":28,"text":"Doran"},{"min":29,"max":29,"text":"Echo"},{"min":30,"max":30,"text":"Eren"},{"min":31,"max":31,"text":"Erim"},{"min":32,"max":32,"text":"Esana"},{"min":33,"max":33,"text":"Eveline"},{"min":34,"max":34,"text":"Faye"},{"min":35,"max":35,"text":"Fletcher"},{"min":36,"max":36,"text":"Flint"},{"min":37,"max":37,"text":"Florian"},{"min":38,"max":38,"text":"Gavin"},{"min":39,"max":39,"text":"Halia"},{"min":40,"max":40,"text":"Ike"},{"min":41,"max":41,"text":"Isaac"},{"min":42,"max":42,"text":"James"},{"min":43,"max":43,"text":"Janya"},{"min":44,"max":44,"text":"Jihun"},{"min":45,"max":45,"text":"Jorunn"},{"min":46,"max":46,"text":"Juliana"},{"min":47,"max":47,"text":"Juro"},{"min":48,"max":48,"text":"Kaisa"},{"min":49,"max":49,"text":"Karthik"},{"min":50,"max":50,"text":"Kayla"},{"min":51,"max":51,"text":"Kei"},{"min":52,"max":52,"text":"Kiana"},{"min":53,"max":53,"text":"Kieran"},{"min":54,"max":54,"text":"Kierra"},{"min":55,"max":55,"text":"Kimora"},{"min":56,"max":56,"text":"Kiri"},{"min":57,"max":57,"text":"Kirsa"},{"min":58,"max":58,"text":"Kwan"},{"min":59,"max":59,"text":"Kylar"},{"min":60,"max":60,"text":"Landry"},{"min":61,"max":61,"text":"Logan"},{"min":62,"max":62,"text":"Lowell"},{"min":63,"max":63,"text":"Lucas"},{"min":64,"max":64,"text":"Curtis"},{"min":65,"max":65,"text":"Luna"},{"min":66,"max":66,"text":"Lux"},{"min":67,"max":67,"text":"Mae"},{"min":68,"max":68,"text":"Magnus"},{"min":69,"max":69,"text":"Mave"},{"min":70,"max":70,"text":"Merrick"},{"min":71,"max":71,"text":"Mina"},{"min":72,"max":72,"text":"Nashida"},{"min":73,"max":73,"text":"Nassar"},{"min":74,"max":74,"text":"Ostara"},{"min":75,"max":75,"text":"Qasira"},{"min":76,"max":76,"text":"Quinn"},{"min":77,"max":77,"text":"Ragnar"},{"min":78,"max":78,"text":"Raven"},{"min":79,"max":79,"text":"Ria"},{"min":80,"max":80,"text":"Rokuro"},{"min":81,"max":81,"text":"Roland"},{"min":82,"max":82,"text":"Rowena"},{"min":83,"max":83,"text":"Sage"},{"min":84,"max":84,"text":"Saren"},{"min":85,"max":85,"text":"Annora"},{"min":86,"max":86,"text":"Severinus"},{"min":87,"max":87,"text":"Shen"},{"min":88,"max":88,"text":"Talia"},{"min":89,"max":89,"text":"Tomiko"},{"min":90,"max":90,"text":"Ulan"},{"min":91,"max":91,"text":"Valda"},{"min":92,"max":92,"text":"Venri"},{"min":93,"max":93,"text":"Vesper"},{"min":94,"max":94,"text":"Vuldar"},{"min":95,"max":95,"text":"William"},{"min":96,"max":96,"text":"Yelena"},{"min":97,"max":97,"text":"Zakia"},{"min":98,"max":98,"text":"Zari"},{"min":99,"max":99,"text":"Zephyr"},{"min":100,"max":100,"text":"Zoya"}]},"callsign":{"name":"Callsign","dice":"1d100","rows":[{"min":1,"max":1,"text":"Albatross"},{"min":2,"max":2,"text":"Angler"},{"min":3,"max":3,"text":"Anvil"},{"min":4,"max":4,"text":"Badger"},{"min":5,"max":5,"text":"Bandit"},{"min":6,"max":6,"text":"Bash"},{"min":7,"max":7,"text":"Basilisk"},{"min":8,"max":8,"text":"Bingo"},{"min":9,"max":9,"text":"Blackbird"},{"min":10,"max":10,"text":"Blade"},{"min":11,"max":11,"text":"Bloodshot"},{"min":12,"max":12,"text":"Bluewing"},{"min":13,"max":13,"text":"Bonfire"},{"min":14,"max":14,"text":"Book"},{"min":15,"max":15,"text":"Breaker"},{"min":16,"max":16,"text":"Brick"},{"min":17,"max":17,"text":"Buzz"},{"min":18,"max":18,"text":"Buzzard"},{"min":19,"max":19,"text":"Centurion"},{"min":20,"max":20,"text":"Chimera"},{"min":21,"max":21,"text":"Circuit"},{"min":22,"max":22,"text":"Clank"},{"min":23,"max":23,"text":"Cleric"},{"min":24,"max":24,"text":"Crash"},{"min":25,"max":25,"text":"Cutter"},{"min":26,"max":26,"text":"Cutthroat"},{"min":27,"max":27,"text":"Cypher"},{"min":28,"max":28,"text":"Dagger"},{"min":29,"max":29,"text":"Dancer"},{"min":30,"max":30,"text":"Dash"},{"min":31,"max":31,"text":"Deadeye"},{"min":32,"max":32,"text":"Deuce"},{"min":33,"max":33,"text":"Failsafe"},{"min":34,"max":34,"text":"Farseer"},{"min":35,"max":35,"text":"Fidget"},{"min":36,"max":36,"text":"Firestarter"},{"min":37,"max":37,"text":"Fixer"},{"min":38,"max":38,"text":"Flatline"},{"min":39,"max":39,"text":"Ghost"},{"min":40,"max":40,"text":"Grudge"},{"min":41,"max":41,"text":"Gutshot"},{"min":42,"max":42,"text":"Harrow"},{"min":43,"max":43,"text":"Havoc"},{"min":44,"max":44,"text":"Hellhound"},{"min":45,"max":45,"text":"Hellion"},{"min":46,"max":46,"text":"Hex"},{"min":47,"max":47,"text":"Hush"},{"min":48,"max":48,"text":"Irodescriptionnclad"},{"min":49,"max":49,"text":"Jackal"},{"min":50,"max":50,"text":"Jackpot"},{"min":51,"max":51,"text":"Jester"},{"min":52,"max":52,"text":"Link"},{"min":53,"max":53,"text":"Longshot"},{"min":54,"max":54,"text":"Mainframe"},{"min":55,"max":55,"text":"Mantis"},{"min":56,"max":56,"text":"Mimic"},{"min":57,"max":57,"text":"Mole"},{"min":58,"max":58,"text":"Monarch"},{"min":59,"max":59,"text":"Mongoose"},{"min":60,"max":60,"text":"Nails"},{"min":61,"max":61,"text":"Ogre"},{"min":62,"max":62,"text":"Omega"},{"min":63,"max":63,"text":"Overload"},{"min":64,"max":64,"text":"Packrat"},{"min":65,"max":65,"text":"Paladin"},{"min":66,"max":66,"text":"Phantom"},{"min":67,"max":67,"text":"Phoenix"},{"min":68,"max":68,"text":"Pyro"},{"min":69,"max":69,"text":"Quickdraw"},{"min":70,"max":70,"text":"Razor"},{"min":71,"max":71,"text":"Rogue"},{"min":72,"max":72,"text":"Rook"},{"min":73,"max":73,"text":"Rover"},{"min":74,"max":74,"text":"Scout"},{"min":75,"max":75,"text":"Shadow"},{"min":76,"max":76,"text":"Shark"},{"min":77,"max":77,"text":"Shutdown"},{"min":78,"max":78,"text":"Slack"},{"min":79,"max":79,"text":"Slash"},{"min":80,"max":80,"text":"Snipe"},{"min":81,"max":81,"text":"Spider"},{"min":82,"max":82,"text":"Splinter"},{"min":83,"max":83,"text":"Static"},{"min":84,"max":84,"text":"Stinger"},{"min":85,"max":85,"text":"Straggler"},{"min":86,"max":86,"text":"Swindle"},{"min":87,"max":87,"text":"Tinker"},{"min":88,"max":88,"text":"Touchdown"},{"min":89,"max":89,"text":"Tycoon"},{"min":90,"max":90,"text":"Vagabond"},{"min":91,"max":91,"text":"Valkyrie"},{"min":92,"max":92,"text":"Vanguard"},{"min":93,"max":93,"text":"Vertigo"},{"min":94,"max":94,"text":"Warden"},{"min":95,"max":95,"text":"Watchdog"},{"min":96,"max":96,"text":"Wayfinder"},{"min":97,"max":97,"text":"Whisper"},{"min":98,"max":98,"text":"Wraith"},{"min":99,"max":99,"text":"Wrongway"},{"min":100,"max":100,"text":"Zephyr"}]},"family_name":{"name":"Family Name","dice":"1d100","rows":[{"min":1,"max":1,"text":"Kuzmin"},{"min":2,"max":2,"text":"Durant"},{"min":3,"max":3,"text":"Jefferies"},{"min":4,"max":4,"text":"Velez"},{"min":5,"max":5,"text":"Lontoc"},{"min":6,"max":6,"text":"Wade"},{"min":7,"max":7,"text":"Kade"},{"min":8,"max":8,"text":"Thorn"},{"min":9,"max":9,"text":"Khosla"},{"min":10,"max":10,"text":"Hendrix"},{"min":11,"max":11,"text":"Okiro"},{"min":12,"max":12,"text":"Ripley"},{"min":13,"max":13,"text":"Talin"},{"min":14,"max":14,"text":"Jin"},{"min":15,"max":15,"text":"Finn"},{"min":16,"max":16,"text":"Solas"},{"min":17,"max":17,"text":"Quint"},{"min":18,"max":18,"text":"Keelan"},{"min":19,"max":19,"text":"Silva"},{"min":20,"max":20,"text":"Valk"},{"min":21,"max":21,"text":"O'Brien"},{"min":22,"max":22,"text":"Ruiz"},{"min":23,"max":23,"text":"Stallard"},{"min":24,"max":24,"text":"Mackenson"},{"min":25,"max":25,"text":"Jensen"},{"min":26,"max":26,"text":"Sakir"},{"min":27,"max":27,"text":"Tolari"},{"min":28,"max":28,"text":"Kain"},{"min":29,"max":29,"text":"Carr"},{"min":30,"max":30,"text":"Valenus"},{"min":31,"max":31,"text":"Kaan"},{"min":32,"max":32,"text":"Taylan"},{"min":33,"max":33,"text":"Legrand"},{"min":34,"max":34,"text":"Jemison"},{"min":35,"max":35,"text":"Arden"},{"min":36,"max":36,"text":"Sayer"},{"min":37,"max":37,"text":"Kai"},{"min":38,"max":38,"text":"Slater"},{"min":39,"max":39,"text":"Edris"},{"min":40,"max":40,"text":"Sutton"},{"min":41,"max":41,"text":"Savarin"},{"min":42,"max":42,"text":"Bridger"},{"min":43,"max":43,"text":"Mital"},{"min":44,"max":44,"text":"Shin"},{"min":45,"max":45,"text":"Nadir"},{"min":46,"max":46,"text":"Santos"},{"min":47,"max":47,"text":"Mihara"},{"min":48,"max":48,"text":"Buhari"},{"min":49,"max":49,"text":"Salvi"},{"min":50,"max":50,"text":"Adler"},{"min":51,"max":51,"text":"Takara"},{"min":52,"max":52,"text":"Shelton"},{"min":53,"max":53,"text":"Vandu"},{"min":54,"max":54,"text":"Vega"},{"min":55,"max":55,"text":"Zhang"},{"min":56,"max":56,"text":"Savela"},{"min":57,"max":57,"text":"Hawking"},{"min":58,"max":58,"text":"Jen"},{"min":59,"max":59,"text":"Hobbs"},{"min":60,"max":60,"text":"Holland"},{"min":61,"max":61,"text":"Silvius"},{"min":62,"max":62,"text":"Freeman"},{"min":63,"max":63,"text":"Barbosa"},{"min":64,"max":64,"text":"Winter"},{"min":65,"max":65,"text":"Hammond"},{"min":66,"max":66,"text":"Archer"},{"min":67,"max":67,"text":"Barlowe"},{"min":68,"max":68,"text":"Shepherd"},{"min":69,"max":69,"text":"Griffin"},{"min":70,"max":70,"text":"Frost"},{"min":71,"max":71,"text":"Quon"},{"min":72,"max":72,"text":"Malek"},{"min":73,"max":73,"text":"Murad"},{"min":74,"max":74,"text":"Becker"},{"min":75,"max":75,"text":"Ammar"},{"min":76,"max":76,"text":"Braddock"},{"min":77,"max":77,"text":"Blackstone"},{"min":78,"max":78,"text":"Hadley"},{"min":79,"max":79,"text":"Farin"},{"min":80,"max":80,"text":"Kobayashi"},{"min":81,"max":81,"text":"Duval"},{"min":82,"max":82,"text":"Hunter"},{"min":83,"max":83,"text":"Beckett"},{"min":84,"max":84,"text":"Dykstra"},{"min":85,"max":85,"text":"Gray"},{"min":86,"max":86,"text":"Sedano"},{"min":87,"max":87,"text":"Bai"},{"min":88,"max":88,"text":"Booker"},{"min":89,"max":89,"text":"Sato"},{"min":90,"max":90,"text":"Vayan"},{"min":91,"max":91,"text":"Bond"},{"min":92,"max":92,"text":"Stark"},{"min":93,"max":93,"text":"Stirling"},{"min":94,"max":94,"text":"Wolfe"},{"min":95,"max":95,"text":"O'Niel"},{"min":96,"max":96,"text":"Petrov"},{"min":97,"max":97,"text":"Nazari"},{"min":98,"max":98,"text":"Darwin"},{"min":99,"max":99,"text":"Pearson"},{"min":100,"max":100,"text":"Volkov"}]}};
+const CAMPAIGN_TABLES = {"background_assets":{"name":"Background Assets","dice":"1d100","rows":[{"min":1,"max":5,"text":"Battlefield Medic","text2":"Healer; Veteran"},{"min":6,"max":10,"text":"Delegate","text2":"Bannersworn; Diplomat"},{"min":11,"max":15,"text":"Exobiologist","text2":"Lore Hunter; Naturalist"},{"min":16,"max":20,"text":"Far Trader","text2":"Navigator; Trader"},{"min":21,"max":25,"text":"Fugitive Hunter","text2":"Armored; Bounty Hunter"},{"min":26,"max":30,"text":"Hacker","text2":"Infiltrator; Tech"},{"min":31,"max":35,"text":"Hotshot Pilot","text2":"Ace; Navigator"},{"min":36,"max":40,"text":"Interstellar Scout","text2":"Explorer; Voidborn"},{"min":41,"max":45,"text":"Monster Hunter","text2":"Gunner; Slayer"},{"min":46,"max":50,"text":"Occultist","text2":"Outcast; Shade"},{"min":51,"max":55,"text":"Operative","text2":"Infiltrator; Blademaster"},{"min":56,"max":60,"text":"Outlaw","text2":"Fugitive; Gunslinger"},{"min":61,"max":65,"text":"Private Investigator","text2":"Brawler; Sleuth"},{"min":66,"max":70,"text":"Prophet","text2":"Devotant; Seer"},{"min":71,"max":75,"text":"Psionicist","text2":"Kinetic; Vestige"},{"min":76,"max":80,"text":"Smuggler","text2":"Courier; Scoundrel"},{"min":81,"max":85,"text":"Spiritualist","text2":"Haunted; Empath"},{"min":86,"max":90,"text":"Starship Engineer","text2":"Gearhead; Tech"},{"min":91,"max":95,"text":"Supersoldier","text2":"Augmented; Mercenary"},{"min":96,"max":100,"text":"Tomb Raider","text2":"Scavenger; Scoundrel"}]},"backstory_prompts":{"name":"Backstory Prompts","dice":"1d100","rows":[{"min":1,"max":7,"text":"You abandoned your kin after learning a troubling truth"},{"min":8,"max":13,"text":"You are guided by a vision or prophecy"},{"min":14,"max":20,"text":"You are haunted by past actions or failures"},{"min":21,"max":27,"text":"You are running from a criminal past"},{"min":28,"max":34,"text":"You are the sole survivor of an attack or calamity"},{"min":35,"max":40,"text":"You escaped an abusive or unjust situation"},{"min":41,"max":46,"text":"You have no memory of your former life"},{"min":47,"max":53,"text":"You rejected a duty or destiny"},{"min":54,"max":60,"text":"You were banished from your former home"},{"min":61,"max":67,"text":"You were denied a birthright"},{"min":68,"max":74,"text":"You were on your own for as long as you can remember"},{"min":75,"max":81,"text":"You were sent away on a prolonged mission"},{"min":82,"max":87,"text":"You were taken or lured away by someone"},{"min":88,"max":94,"text":"Your ambitions outgrew your humble origins"},{"min":95,"max":100,"text":"Your wanderlust carried you far away"}]},"starship_history":{"name":"Starship History","dice":"1d100","rows":[{"min":1,"max":8,"text":"Acquired in trade for a precious family heirloom"},{"min":9,"max":17,"text":"Built out of repurposed scrap"},{"min":18,"max":25,"text":"Claimed as spoils of war"},{"min":26,"max":34,"text":"Discovered as a derelict, and patched back together"},{"min":35,"max":42,"text":"Earned in exchange for a promise or vow"},{"min":43,"max":50,"text":"Found abandoned in perfect condition"},{"min":51,"max":58,"text":"Granted by an organization or community"},{"min":59,"max":67,"text":"Inherited from a relative or mentor"},{"min":68,"max":75,"text":"Purchased at a suspiciously cheap price"},{"min":76,"max":84,"text":"Stolen from a notorious crime boss or criminal organization"},{"min":85,"max":92,"text":"Taken while fleeing an attack or disaster"},{"min":93,"max":100,"text":"Won in a bet"}]},"starship_quirks":{"name":"Starship Quirks","dice":"1d100","rows":[{"min":1,"max":5,"text":"Engine room is scorched with old burn marks"},{"min":6,"max":10,"text":"Exterior is marred by rust and grime"},{"min":11,"max":15,"text":"Faint, phantom music sometimes echoes through the corridors"},{"min":16,"max":20,"text":"Gravity generator is notoriously fickle"},{"min":21,"max":25,"text":"Hull is fused with organic growths"},{"min":26,"max":30,"text":"Hull rattles and groans in atmospheric flight"},{"min":31,"max":35,"text":"Interior spaces are crowded with exposed cables and conduits"},{"min":36,"max":40,"text":"Looks defenseless, but exterior panels open to reveal weapons"},{"min":41,"max":45,"text":"Navigation logs contain coordinates to locations that do not\u2014or should not\u2014exist"},{"min":46,"max":50,"text":"Old bloodstain in the airlock reappears even when painted over"},{"min":51,"max":55,"text":"Once a beautiful ship, now scarred by a devastating battle"},{"min":56,"max":60,"text":"Patched hull covers a recent catastrophic breach"},{"min":61,"max":65,"text":"Placards and control labels are in an uncommon language"},{"min":66,"max":70,"text":"Removable plate decks provide access to hidden storage"},{"min":71,"max":75,"text":"Segmented landing gear unfold like gangly spider legs"},{"min":76,"max":80,"text":"Ship is powered by an ancient precursor device"},{"min":81,"max":85,"text":"Someone marked the hull with graffiti during a recent layover"},{"min":86,"max":90,"text":"Strange symbols are scrawled on the deck and bulkheads in the main corridor"},{"min":91,"max":95,"text":"Things tend to go missing for no logical reason"},{"min":96,"max":100,"text":"Timers and clocks are always just a bit off"}]},"sector_trouble":{"name":"Sector Trouble","dice":"1d100","rows":[{"min":1,"max":5,"text":"Blockade prevents trade with other sectors"},{"min":6,"max":10,"text":"Bounty hunters search for an infamous fugitive"},{"min":11,"max":15,"text":"Chaotic breaches in spacetime spread like wildfire"},{"min":16,"max":20,"text":"Criminal faction corrupts local authorities"},{"min":21,"max":25,"text":"Devastating superweapon has fallen into the wrong hands"},{"min":26,"max":30,"text":"Energy storms are rampant"},{"min":31,"max":35,"text":"Magnetic disturbances disrupt communication"},{"min":36,"max":40,"text":"Newly found resource lures greedy fortune hunters to the sector"},{"min":41,"max":45,"text":"Notorious pirate clan preys on starships"},{"min":46,"max":50,"text":"Parasitic lifeforms spread like a plague"},{"min":51,"max":55,"text":"Precursor sites throughout the sector emit strange signals"},{"min":56,"max":60,"text":"Prophecies foretell an imminent awakening of a dreadful power"},{"min":61,"max":65,"text":"Raider clan emerges as a dominant threat under a new leader"},{"min":66,"max":70,"text":"Religious zealots overrun the sector"},{"min":71,"max":75,"text":"Rogue AI infiltrates systems throughout the sector"},{"min":76,"max":80,"text":"Settlements or factions are on the brink of war"},{"min":81,"max":85,"text":"Ships regularly go missing"},{"min":86,"max":90,"text":"Sickness spreads among ships and settlements"},{"min":91,"max":95,"text":"Supernova is imminent"},{"min":96,"max":100,"text":"Titanic spaceborne lifeform stalks the spaceways"}]},"inciting_incident":{"name":"Inciting Incident","dice":"1d100","rows":[{"min":1,"max":5,"text":"Aid a starship caught in a spacetime fracture"},{"min":6,"max":10,"text":"Broker peace between two feuding settlements"},{"min":11,"max":15,"text":"Chart a new passage between isolated settlements"},{"min":16,"max":20,"text":"Defend the people of a beleaguered settlement against raiders"},{"min":21,"max":25,"text":"Discover who sabotaged a settlement's air processors"},{"min":26,"max":30,"text":"Escort a tradeship carrying a prized cargo"},{"min":31,"max":35,"text":"Ferry a rescue team to a perilous disaster site"},{"min":36,"max":40,"text":"Infiltrate a fortified base to steal crucial data"},{"min":41,"max":45,"text":"Investigate terrifying manifestations at a remote settlement"},{"min":46,"max":50,"text":"Liberate prisoners at a cruel labor camp"},{"min":51,"max":55,"text":"Locate a downed spacer on an uninhabited planet"},{"min":56,"max":60,"text":"Protect a fugitive from a relentless bounty hunter"},{"min":61,"max":65,"text":"Recover a cherished pre-exodus artifact from an enemy"},{"min":66,"max":70,"text":"Rescue a starship crew held captive by mutineers"},{"min":71,"max":75,"text":"Retrieve a cache of stolen weapons from a pirate ship"},{"min":76,"max":80,"text":"Sabotage an enemy installation"},{"min":81,"max":85,"text":"Search for a missing expedition in the depths of a precursor vault"},{"min":86,"max":90,"text":"Shield a wondrous lifeform from those who seek to destroy it"},{"min":91,"max":95,"text":"Track and slay a marauding beast"},{"min":96,"max":100,"text":"Transport a displaced people to their new home"}]}};
+
+    const log = document.getElementById('log');
+    const grid = document.getElementById('grid');
+    let first = true;
+
+    function logCard(spec) {
+      if (first) { log.innerHTML = ''; first = false; }
+      appendCard(log, spec);
+    }
+
+    function rollSingle(table, label, withRoll) {
+      const { roll, text } = rollTable(table);
+      logCard({ total: text, detailText: withRoll ? 'rolled ' + roll : null });
+      reportToNative(label + ': ' + text, text.slice(0, 4));
+    }
+
+    // For a table_text2 table (a result plus a summary column) - shows the
+    // summary as the detail line instead of the roll number.
+    function rollSingle2(table, label) {
+      const { text, row } = rollTable(table);
+      logCard({ total: text, detailText: row.text2 || null });
+      reportToNative(label + ': ' + text, text.slice(0, 4));
+    }
+
+    // Character Name: Given + Family is the common case; Callsign is its own
+    // roll, added by hand when it fits the character (same "combo is the
+    // common case, parts are still browsable" pattern as Ironsworn's Ironlander).
+    function rollCharacterName() {
+      const given = rollTable(NAME_TABLES.given);
+      const family = rollTable(NAME_TABLES.family_name);
+      const name = given.text + ' ' + family.text;
+      logCard({ total: name });
+      reportToNative('Name: ' + name, name.slice(0, 4));
+    }
+
+
+    const ORACLES = {
+      character: {
+        label: "Character",
+        hint: "Roll to flesh out an NPC you've just met.",
+        buildTiles: () => [
+          { label: "First Look", handler: () => rollSingle(CHARACTER_TABLES.first_look, "First Look", true) },
+          { label: "Initial Disposition", handler: () => rollSingle(CHARACTER_TABLES.initial_disposition, "Initial Disposition", true) },
+          { label: "Character Role", handler: () => rollSingle(CHARACTER_TABLES.role, "Character Role", true) },
+          { label: "Character Goal", handler: () => rollSingle(CHARACTER_TABLES.goal, "Character Goal", true) },
+          { label: "Revealed Character Aspect", handler: () => rollSingle(CHARACTER_TABLES.revealed_aspect, "Revealed Character Aspect", true) }
+        ],
+      },
+      name: {
+        label: "Character Name",
+        hint: "Roll a full name, or its parts individually.",
+        buildTiles: () => [
+          { label: "Full Name", handler: rollCharacterName },
+          { label: "Given Name", handler: () => rollSingle(NAME_TABLES.given, "Given Name", true) },
+          { label: "Callsign", handler: () => rollSingle(NAME_TABLES.callsign, "Callsign", true) },
+          { label: "Family Name", handler: () => rollSingle(NAME_TABLES.family_name, "Family Name", true) }
+        ],
+      },
+      campaign: {
+        label: "Campaign Launch",
+        hint: "Roll to spark a new campaign.",
+        buildTiles: () => [
+          { label: "Background Assets", handler: () => rollSingle2(CAMPAIGN_TABLES.background_assets, "Background Assets") },
+          { label: "Backstory Prompts", handler: () => rollSingle(CAMPAIGN_TABLES.backstory_prompts, "Backstory Prompts", true) },
+          { label: "Starship History", handler: () => rollSingle(CAMPAIGN_TABLES.starship_history, "Starship History", true) },
+          { label: "Starship Quirks", handler: () => rollSingle(CAMPAIGN_TABLES.starship_quirks, "Starship Quirks", true) },
+          { label: "Sector Trouble", handler: () => rollSingle(CAMPAIGN_TABLES.sector_trouble, "Sector Trouble", true) },
+          { label: "Inciting Incident", handler: () => rollSingle(CAMPAIGN_TABLES.inciting_incident, "Inciting Incident", true) }
+        ],
+      },
+    };
+
+    function renderOracle(key) {
+      grid.innerHTML = '';
+      initOracleGrid(grid, ORACLES[key].buildTiles());
+      if (first) {
+        log.innerHTML = '<div class="empty">' + ORACLES[key].hint + '</div>';
+      }
+    }
+
+    const oracleTrigger = document.getElementById('oracleTrigger');
+    const oracleTriggerLabel = document.getElementById('oracleTriggerLabel');
+    const oracleMenu = document.getElementById('oracleMenu');
+
+    function openOracleMenu() {
+      oracleMenu.hidden = false;
+      oracleTrigger.setAttribute('aria-expanded', 'true');
+      document.addEventListener('click', handleOracleMenuOutsideClick, { capture: true });
+    }
+    function closeOracleMenu() {
+      oracleMenu.hidden = true;
+      oracleTrigger.setAttribute('aria-expanded', 'false');
+      document.removeEventListener('click', handleOracleMenuOutsideClick, { capture: true });
+    }
+    function handleOracleMenuOutsideClick(e) {
+      if (!oracleMenu.contains(e.target) && e.target !== oracleTrigger) closeOracleMenu();
+    }
+    oracleTrigger.addEventListener('click', () => {
+      if (oracleMenu.hidden) openOracleMenu(); else closeOracleMenu();
+    });
+
+    function selectOracle(key) {
+      oracleTriggerLabel.textContent = ORACLES[key].label;
+      oracleMenu.querySelectorAll('.oracle-menu-item').forEach((item) => {
+        item.setAttribute('aria-selected', item.dataset.key === key ? 'true' : 'false');
+      });
+      renderOracle(key);
+    }
+    oracleMenu.querySelectorAll('.oracle-menu-item').forEach((item) => {
+      item.addEventListener('click', () => {
+        selectOracle(item.dataset.key);
+        closeOracleMenu();
+      });
+    });
+
+    selectOracle('character');
+
+  </script>
+</body>
+</html>

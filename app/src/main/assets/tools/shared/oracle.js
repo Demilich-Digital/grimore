@@ -4,10 +4,21 @@
 // each category actually rolls and how it labels the result is real content,
 // not duplication, so that part stays in the tool's own page.
 
+// Every Ironsworn table is d100, but Starforged has a few oddballs (a d10
+// table, some d20 tables) - parse the table's own dice size instead of
+// assuming 100, falling back to 100 for any table that omits it.
+function tableDiceMax(table) {
+  const match = /^\d+d(\d+)$/.exec(table.dice || '');
+  return match ? parseInt(match[1], 10) : 100;
+}
+
+// row is the full matched row, not just its text - most tools only destructure
+// { roll, text }, but a table_text2-style table (a result plus a second
+// "summary" column, e.g. Starforged's Faction Influence) needs row.text2 too.
 function rollTable(table) {
-  const roll = 1 + Math.floor(Math.random() * 100);
+  const roll = 1 + Math.floor(Math.random() * tableDiceMax(table));
   const row = table.rows.find((r) => roll >= r.min && roll <= r.max);
-  return { roll, text: row.text };
+  return { roll, text: row.text, row };
 }
 
 // buttons: array of { label, handler }, where handler() performs the roll,

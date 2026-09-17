@@ -16,6 +16,21 @@ content CC BY 4.0 or CC BY-NC 4.0 depending on source - only CC BY 4.0 content
 is used here). Table rows are reproduced verbatim; the surrounding page code is
 original.
 
+## Ironsworn: Starforged oracle content
+
+The Starforged oracle tools (`app/src/main/assets/tools/starforged-*-oracles/`
+- Core, Move, Misc, Character, Creature, Faction, Settlement, Starship,
+Space, Location Theme, Derelict, and Precursor Vault, each combining a
+Datasworn oracle collection into one tool with an oracle picker) embed
+oracle table text from *Ironsworn: Starforged*, by Shawn Tomkin, licensed
+under **CC BY 4.0** (https://creativecommons.org/licenses/by/4.0). Sourced
+from [Datasworn](https://github.com/rsek/datasworn) - the entire Starforged
+ruleset file is CC BY 4.0, unlike some other Datasworn-packaged content.
+Table rows are reproduced verbatim; the surrounding page code is original.
+A Starforged Planet Oracles tool, covering the ruleset's remaining (and by
+far largest) oracle chapter, is planned as a separate two-tap tile grid
+rather than the picker pattern used here.
+
 ## Bundled web fonts
 
 The Dice Bot and Custom Dice tools (`app/src/main/assets/tools/{dice,

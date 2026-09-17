@@ -1,0 +1,78 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Starforged Move Oracles</title>
+<script src="../shared/bubble.js"></script>
+<link rel="stylesheet" href="../shared/theme.css">
+<style>
+  #grid { grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); }
+</style>
+</head>
+<body>
+  <noscript>
+    <div style="padding:16px;font-family:system-ui,sans-serif;">
+      <h2>Starforged Move Oracles</h2>
+      <p>This tool needs JavaScript, which is currently disabled in this WebView.</p>
+      <p>That shouldn't happen - the app enables it itself. Please report this bug.</p>
+    </div>
+  </noscript>
+
+  <div id="log"></div>
+  <div id="grid"></div>
+
+  <script src="../shared/oracle.js"></script>
+  <script>
+    // Ironsworn: Starforged oracles, by Shawn Tomkin - CC BY 4.0
+    // (https://creativecommons.org/licenses/by/4.0). Sourced from Datasworn
+    // (https://github.com/rsek/datasworn). Rows are {min, max, text}; roll
+    // the table's die and find the row whose range contains it.
+
+const MOVE_TABLES = {"begin_a_session":{"name":"Begin a Session","dice":"1d100","rows":[{"min":1,"max":10,"text":"Flashback reveals an aspect of your background or nature"},{"min":11,"max":20,"text":"Flashback reveals an aspect of another character, place, or faction"},{"min":21,"max":30,"text":"Influential character or faction is introduced or given new detail"},{"min":31,"max":40,"text":"Seemingly unrelated situations are shown to be connected"},{"min":41,"max":50,"text":"External factors create new danger, urgency, or importance for a quest"},{"min":51,"max":60,"text":"Important character is put in danger or suffers a misadventure"},{"min":61,"max":70,"text":"Key location is made unsafe or becomes mired in conflict"},{"min":71,"max":80,"text":"Unexpected return of an enemy or threat"},{"min":81,"max":90,"text":"Peril lies ahead or lurks just out of view"},{"min":91,"max":100,"text":"Unforeseen aid is on the way or within reach"}]},"make_a_discovery":{"name":"Make a Discovery","dice":"1d100","rows":[{"min":1,"max":4,"text":"Advanced technology waiting to be harnessed or salvaged"},{"min":5,"max":8,"text":"Ancient archive or message"},{"min":9,"max":10,"text":"Artificial consciousness evolved to a higher state"},{"min":11,"max":12,"text":"Clues to a crucial resource or uncharted domain"},{"min":13,"max":14,"text":"Envoy from another time or reality"},{"min":15,"max":22,"text":"Extraordinary natural phenomenon"},{"min":23,"max":24,"text":"First contact with intelligent life"},{"min":25,"max":26,"text":"Gateway to another time or alternate reality"},{"min":27,"max":28,"text":"Key to unlocking a language or method of communication"},{"min":29,"max":34,"text":"Lost or hidden people"},{"min":35,"max":42,"text":"Majestic or unusual lifeforms"},{"min":43,"max":46,"text":"Marvel of ancient engineering"},{"min":47,"max":50,"text":"Miraculously preserved artifact or specimen"},{"min":51,"max":56,"text":"Monumental architecture or artistry of an ancient civilization"},{"min":57,"max":62,"text":"Mysterious device or artifact of potential value"},{"min":63,"max":66,"text":"New understanding of an enduring mystery"},{"min":67,"max":68,"text":"Pathway or means of travel to a distant location"},{"min":69,"max":70,"text":"Person or lifeform with phenomenal abilities"},{"min":71,"max":78,"text":"Place of awe-inspiring beauty"},{"min":79,"max":86,"text":"Rare and valuable resource"},{"min":87,"max":88,"text":"Safeguarded or idyllic location"},{"min":89,"max":90,"text":"Visions or prophesies of the future"},{"min":91,"max":100,"text":"Roll twice"}]},"confront_chaos":{"name":"Confront Chaos","dice":"1d100","rows":[{"min":1,"max":4,"text":"Baneful weapon of mass destruction"},{"min":5,"max":9,"text":"Cataclysmic environmental effects"},{"min":10,"max":12,"text":"Dead given unnatural life"},{"min":13,"max":17,"text":"Destructive lifeform of monstrous proportion"},{"min":18,"max":20,"text":"Dread hallucinations or illusions"},{"min":21,"max":24,"text":"Harbingers of an imminent invasion"},{"min":25,"max":27,"text":"Horde of insatiable hunger or fury"},{"min":28,"max":32,"text":"Horrific lifeforms of inscrutable purpose"},{"min":33,"max":36,"text":"Impostors in human form"},{"min":37,"max":41,"text":"Machines made enemy"},{"min":42,"max":45,"text":"Malignant contagion or parasite"},{"min":46,"max":50,"text":"Messenger or signal with a dire warning"},{"min":51,"max":53,"text":"Passage to a grim alternate reality"},{"min":54,"max":58,"text":"People corrupted by chaos"},{"min":59,"max":63,"text":"Powerful distortions of time or space"},{"min":64,"max":68,"text":"Signs of an impending catastrophe"},{"min":69,"max":72,"text":"Site of a baffling disappearance"},{"min":73,"max":77,"text":"Site of a horrible disaster"},{"min":78,"max":82,"text":"Site of terrible carnage"},{"min":83,"max":87,"text":"Technology nullified or made unstable"},{"min":88,"max":92,"text":"Technology warped for dark purpose"},{"min":93,"max":96,"text":"Vault of dread technology or power"},{"min":97,"max":100,"text":"Worshipers of great and malevolent powers"}]},"take_decisive_action":{"name":"Take Decisive Action","dice":"1d100","rows":[{"min":1,"max":40,"text":"It\u2019s worse than you thought: Make a suffer move (-2)"},{"min":41,"max":52,"text":"Victory is short-lived: A new peril or foe appears"},{"min":53,"max":64,"text":"You face collateral damage: Something is lost, damaged, or broken"},{"min":65,"max":76,"text":"Others pay the price: Someone else suffers the cost"},{"min":77,"max":88,"text":"Others won\u2019t forget: You are marked for vengeance"},{"min":89,"max":100,"text":"It gets complicated: The true nature of a foe or objective is revealed"}]},"endure_harm":{"name":"Endure Harm","dice":"1d100","rows":[{"min":1,"max":10,"text":"You suffer mortal harm. Face Death."},{"min":11,"max":20,"text":"You are dying. Within an hour or two, you must Heal and raise your health above 0, or Face Death."},{"min":21,"max":35,"text":"You are unconscious and out of action. If left alone, you come back to your senses in an hour or two. If you are vulnerable to ongoing harm, Face Death."},{"min":36,"max":50,"text":"You are reeling and fighting to stay conscious. If you engage in any vigorous activity before taking a breather for a few minutes, roll on this table again (before resolving the other move)."},{"min":51,"max":100,"text":"You are still standing."}]},"endure_stress":{"name":"Endure Stress","dice":"1d100","rows":[{"min":1,"max":10,"text":"You are overwhelmed. Face Desolation."},{"min":11,"max":25,"text":"You give up. Forsake Your Vow."},{"min":26,"max":50,"text":"You give in to fear or compulsion, and act against your better instincts."},{"min":51,"max":100,"text":"You persevere."}]},"withstand_damage":{"name":"Withstand Damage","dice":"1d100","rows":[{"min":1,"max":10,"text":"Immediate catastrophic destruction. All aboard must Endure Harm or Face Death, as appropriate."},{"min":11,"max":25,"text":"Destruction is imminent and unavoidable. If you do not have the means or intention to get clear, Endure Harm or Face Death as appropriate."},{"min":26,"max":40,"text":"Destruction is imminent, but can be averted if you Repair your vehicle and raise its integrity above 0. If you fail, see 11-25."},{"min":41,"max":55,"text":"You cannot Repair this vehicle until you Resupply and obtain a crucial replacement part. If you roll this result again prior to that, see 11-25."},{"min":56,"max":70,"text":"The vehicle is crippled or out of your control. To get it back in action, you must Repair and raise its integrity above 0."},{"min":71,"max":85,"text":"It's a rough ride. All aboard must make the Endure Harm, Endure Stress, or Companion Takes a Hit move, suffering a serious (-2) cost."},{"min":86,"max":95,"text":"You\u2019ve lost fuel, energy, or cargo. Sacrifice Resources (-2)."},{"min":96,"max":100,"text":"Against all odds, the vehicle holds together."}]},"pay_the_price":{"name":"Pay the Price","dice":"1d100","rows":[{"min":1,"max":2,"text":"A trusted individual or community acts against you"},{"min":3,"max":4,"text":"An individual or community you care about is exposed to danger"},{"min":5,"max":7,"text":"You encounter signs of a looming threat"},{"min":8,"max":10,"text":"You create an opportunity for an enemy"},{"min":11,"max":14,"text":"You face a tough choice"},{"min":15,"max":18,"text":"You face the consequences of an earlier choice"},{"min":19,"max":22,"text":"A surprising development complicates your quest"},{"min":23,"max":26,"text":"You are separated from something or someone"},{"min":27,"max":32,"text":"Your action causes collateral damage or has an unintended effect"},{"min":33,"max":38,"text":"Something of value is lost or destroyed"},{"min":39,"max":44,"text":"The environment or terrain introduces a new hazard"},{"min":45,"max":50,"text":"A new enemy is revealed"},{"min":51,"max":56,"text":"A friend, companion, or ally is in harm\u2019s way (or you are, if alone)"},{"min":57,"max":62,"text":"Your equipment or vehicle malfunctions"},{"min":63,"max":68,"text":"Your vehicle suffers damage"},{"min":69,"max":74,"text":"You waste resources"},{"min":75,"max":81,"text":"You are harmed"},{"min":82,"max":88,"text":"You are stressed"},{"min":89,"max":95,"text":"You are delayed or put at a disadvantage"},{"min":96,"max":100,"text":"Roll twice"}]}};
+
+    const log = document.getElementById('log');
+    const grid = document.getElementById('grid');
+    let first = true;
+
+    function logCard(spec) {
+      if (first) { log.innerHTML = ''; first = false; }
+      appendCard(log, spec);
+    }
+
+    function rollSingle(table, label, withRoll) {
+      const { roll, text } = rollTable(table);
+      logCard({ total: text, detailText: withRoll ? 'rolled ' + roll : null });
+      reportToNative(label + ': ' + text, text.slice(0, 4));
+    }
+
+    // For a table_text2 table (a result plus a summary column) - shows the
+    // summary as the detail line instead of the roll number.
+    function rollSingle2(table, label) {
+      const { text, row } = rollTable(table);
+      logCard({ total: text, detailText: row.text2 || null });
+      reportToNative(label + ': ' + text, text.slice(0, 4));
+    }
+
+
+    const ORACLE =  {
+        label: "Move Oracles",
+        hint: "Roll when a move calls for one of these tables.",
+        buildTiles: () => [
+          { label: "Begin a Session", handler: () => rollSingle(MOVE_TABLES.begin_a_session, "Begin a Session", true) },
+          { label: "Make a Discovery", handler: () => rollSingle(MOVE_TABLES.make_a_discovery, "Make a Discovery", true) },
+          { label: "Confront Chaos", handler: () => rollSingle(MOVE_TABLES.confront_chaos, "Confront Chaos", true) },
+          { label: "Take Decisive Action", handler: () => rollSingle(MOVE_TABLES.take_decisive_action, "Take Decisive Action", true) },
+          { label: "Endure Harm", handler: () => rollSingle(MOVE_TABLES.endure_harm, "Endure Harm", true) },
+          { label: "Endure Stress", handler: () => rollSingle(MOVE_TABLES.endure_stress, "Endure Stress", true) },
+          { label: "Withstand Damage", handler: () => rollSingle(MOVE_TABLES.withstand_damage, "Withstand Damage", true) },
+          { label: "Pay the Price", handler: () => rollSingle(MOVE_TABLES.pay_the_price, "Pay the Price", true) }
+        ],
+      }
+
+    log.innerHTML = '<div class="empty">' + ORACLE.hint + '</div>';
+    initOracleGrid(grid, ORACLE.buildTiles());
+
+  </script>
+</body>
+</html>

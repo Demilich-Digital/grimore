@@ -1,0 +1,207 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Starforged Core Oracles</title>
+<script src="../shared/bubble.js"></script>
+<link rel="stylesheet" href="../shared/theme.css">
+<style>
+  #grid { grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); }
+  /* Oracle picker: same custom pill trigger + dropdown as Ironsworn Oracles
+     (see that tool's copy of this comment for why it isn't a native <select>). */
+  .oracle-picker {
+    position: relative;
+    flex: 0 0 auto;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .oracle-trigger {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: var(--card);
+    border: 1.5px solid var(--line);
+    border-radius: 999px;
+    padding: 10px 16px;
+    font-family: "Figtree", sans-serif;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .oracle-trigger:focus {
+    outline: none;
+    border-color: var(--gem-d12);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--gem-d12) 25%, transparent);
+  }
+  .oracle-chevron { width: 16px; height: 16px; color: var(--muted); flex: 0 0 auto; transition: transform 160ms ease; }
+  .oracle-trigger[aria-expanded="true"] .oracle-chevron { transform: rotate(180deg); }
+  .oracle-menu {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    top: 100%;
+    margin-top: 6px;
+    background: var(--card);
+    border: 1.5px solid var(--line);
+    border-radius: 14px;
+    padding: 6px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+    z-index: 5;
+  }
+  .oracle-menu[hidden] { display: none; }
+  .oracle-menu-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-family: "Figtree", sans-serif;
+    font-weight: 600;
+    font-size: 0.88rem;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .oracle-menu-item[aria-selected="true"] { color: var(--gem-d12); }
+  .oracle-menu-item:hover, .oracle-menu-item:focus {
+    outline: none;
+    background: color-mix(in srgb, var(--gem-d12) 14%, var(--card));
+  }
+</style>
+</head>
+<body>
+  <noscript>
+    <div style="padding:16px;font-family:system-ui,sans-serif;">
+      <h2>Starforged Core Oracles</h2>
+      <p>This tool needs JavaScript, which is currently disabled in this WebView.</p>
+      <p>That shouldn't happen - the app enables it itself. Please report this bug.</p>
+    </div>
+  </noscript>
+
+  <div class="oracle-picker">
+    <button id="oracleTrigger" class="oracle-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
+      <span id="oracleTriggerLabel">Ask the Oracle</span>
+      <svg class="oracle-chevron" viewBox="0 0 24 24" fill="none"><polyline points="6 9 12 15 18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div id="oracleMenu" class="oracle-menu" role="listbox" aria-label="Oracle" hidden>
+      <button type="button" class="oracle-menu-item" data-key="ask" role="option" aria-selected="true">Ask the Oracle</button>
+      <button type="button" class="oracle-menu-item" data-key="core" role="option" aria-selected="false">Core Oracles</button>
+    </div>
+  </div>
+  <div id="log"></div>
+  <div id="grid"></div>
+
+  <script src="../shared/oracle.js"></script>
+  <script>
+    // Ironsworn: Starforged oracles, by Shawn Tomkin - CC BY 4.0
+    // (https://creativecommons.org/licenses/by/4.0). Sourced from Datasworn
+    // (https://github.com/rsek/datasworn). Rows are {min, max, text}; roll
+    // 1d100 and find the row whose range contains it.
+
+    // Ask the Oracle: yes/no tables at five levels of likelihood. Note
+    // Starforged's ranges run low-to-Yes/high-to-No, the opposite of classic
+    // Ironsworn's tables - that's the source material, not a transcription bug.
+    const ASK_TABLES = {"almost_certain":{"name":"Almost Certain","dice":"1d100","rows":[{"min":1,"max":90,"text":"Yes"},{"min":91,"max":100,"text":"No"}]},"likely":{"name":"Likely","dice":"1d100","rows":[{"min":1,"max":75,"text":"Yes"},{"min":76,"max":100,"text":"No"}]},"fifty_fifty":{"name":"50/50","dice":"1d100","rows":[{"min":1,"max":50,"text":"Yes"},{"min":51,"max":100,"text":"No"}]},"unlikely":{"name":"Unlikely","dice":"1d100","rows":[{"min":1,"max":25,"text":"Yes"},{"min":26,"max":100,"text":"No"}]},"small_chance":{"name":"Small Chance","dice":"1d100","rows":[{"min":1,"max":10,"text":"Yes"},{"min":11,"max":100,"text":"No"}]}};
+
+    // Core Oracles: Action, Theme, Descriptor, and Focus - the building
+    // blocks combined (usually Action + Theme) to prompt discoveries, events,
+    // and other move results throughout the game.
+    const CORE_TABLES = {"action":{"name":"Action","dice":"1d100","rows":[{"min":1,"max":1,"text":"Abandon"},{"min":2,"max":2,"text":"Acquire"},{"min":3,"max":3,"text":"Advance"},{"min":4,"max":4,"text":"Affect"},{"min":5,"max":5,"text":"Aid"},{"min":6,"max":6,"text":"Arrive"},{"min":7,"max":7,"text":"Assault"},{"min":8,"max":8,"text":"Attack"},{"min":9,"max":9,"text":"Avenge"},{"min":10,"max":10,"text":"Avoid"},{"min":11,"max":11,"text":"Await"},{"min":12,"max":12,"text":"Begin"},{"min":13,"max":13,"text":"Betray"},{"min":14,"max":14,"text":"Bolster"},{"min":15,"max":15,"text":"Breach"},{"min":16,"max":16,"text":"Break"},{"min":17,"max":17,"text":"Capture"},{"min":18,"max":18,"text":"Challenge"},{"min":19,"max":19,"text":"Change"},{"min":20,"max":20,"text":"Charge"},{"min":21,"max":21,"text":"Clash"},{"min":22,"max":22,"text":"Command"},{"min":23,"max":23,"text":"Communicate"},{"min":24,"max":24,"text":"Construct"},{"min":25,"max":25,"text":"Control"},{"min":26,"max":26,"text":"Coordinate"},{"min":27,"max":27,"text":"Create"},{"min":28,"max":28,"text":"Debate"},{"min":29,"max":29,"text":"Defeat"},{"min":30,"max":30,"text":"Defend"},{"min":31,"max":31,"text":"Deflect"},{"min":32,"max":32,"text":"Defy"},{"min":33,"max":33,"text":"Deliver"},{"min":34,"max":34,"text":"Demand"},{"min":35,"max":35,"text":"Depart"},{"min":36,"max":36,"text":"Destroy"},{"min":37,"max":37,"text":"Distract"},{"min":38,"max":38,"text":"Eliminate"},{"min":39,"max":39,"text":"Endure"},{"min":40,"max":40,"text":"Escalate"},{"min":41,"max":41,"text":"Escort"},{"min":42,"max":42,"text":"Evade"},{"min":43,"max":43,"text":"Explore"},{"min":44,"max":44,"text":"Falter"},{"min":45,"max":45,"text":"Find"},{"min":46,"max":46,"text":"Finish"},{"min":47,"max":47,"text":"Focus"},{"min":48,"max":48,"text":"Follow"},{"min":49,"max":49,"text":"Fortify"},{"min":50,"max":50,"text":"Gather"},{"min":51,"max":51,"text":"Guard"},{"min":52,"max":52,"text":"Hide"},{"min":53,"max":53,"text":"Hold"},{"min":54,"max":54,"text":"Hunt"},{"min":55,"max":55,"text":"Impress"},{"min":56,"max":56,"text":"Initiate"},{"min":57,"max":57,"text":"Inspect"},{"min":58,"max":58,"text":"Investigate"},{"min":59,"max":59,"text":"Journey"},{"min":60,"max":60,"text":"Learn"},{"min":61,"max":61,"text":"Leave"},{"min":62,"max":62,"text":"Locate"},{"min":63,"max":63,"text":"Lose"},{"min":64,"max":64,"text":"Manipulate"},{"min":65,"max":65,"text":"Mourn"},{"min":66,"max":66,"text":"Move"},{"min":67,"max":67,"text":"Oppose"},{"min":68,"max":68,"text":"Overwhelm"},{"min":69,"max":69,"text":"Persevere"},{"min":70,"max":70,"text":"Preserve"},{"min":71,"max":71,"text":"Protect"},{"min":72,"max":72,"text":"Raid"},{"min":73,"max":73,"text":"Reduce"},{"min":74,"max":74,"text":"Refuse"},{"min":75,"max":75,"text":"Reject"},{"min":76,"max":76,"text":"Release"},{"min":77,"max":77,"text":"Remove"},{"min":78,"max":78,"text":"Research"},{"min":79,"max":79,"text":"Resist"},{"min":80,"max":80,"text":"Restore"},{"min":81,"max":81,"text":"Reveal"},{"min":82,"max":82,"text":"Risk"},{"min":83,"max":83,"text":"Scheme"},{"min":84,"max":84,"text":"Search"},{"min":85,"max":85,"text":"Secure"},{"min":86,"max":86,"text":"Seize"},{"min":87,"max":87,"text":"Serve"},{"min":88,"max":88,"text":"Share"},{"min":89,"max":89,"text":"Strengthen"},{"min":90,"max":90,"text":"Summon"},{"min":91,"max":91,"text":"Support"},{"min":92,"max":92,"text":"Suppress"},{"min":93,"max":93,"text":"Surrender"},{"min":94,"max":94,"text":"Swear"},{"min":95,"max":95,"text":"Threaten"},{"min":96,"max":96,"text":"Transform"},{"min":97,"max":97,"text":"Uncover"},{"min":98,"max":98,"text":"Uphold"},{"min":99,"max":99,"text":"Weaken"},{"min":100,"max":100,"text":"Withdraw"}]},"theme":{"name":"Theme","dice":"1d100","rows":[{"min":1,"max":1,"text":"Ability"},{"min":2,"max":2,"text":"Advantage"},{"min":3,"max":3,"text":"Alliance"},{"min":4,"max":4,"text":"Authority"},{"min":5,"max":5,"text":"Balance"},{"min":6,"max":6,"text":"Barrier"},{"min":7,"max":7,"text":"Belief"},{"min":8,"max":8,"text":"Blood"},{"min":9,"max":9,"text":"Bond"},{"min":10,"max":10,"text":"Burden"},{"min":11,"max":11,"text":"Commerce"},{"min":12,"max":12,"text":"Community"},{"min":13,"max":13,"text":"Corruption"},{"min":14,"max":14,"text":"Creation"},{"min":15,"max":15,"text":"Crime"},{"min":16,"max":16,"text":"Culture"},{"min":17,"max":17,"text":"Cure"},{"min":18,"max":18,"text":"Danger"},{"min":19,"max":19,"text":"Death"},{"min":20,"max":20,"text":"Debt"},{"min":21,"max":21,"text":"Decay"},{"min":22,"max":22,"text":"Deception"},{"min":23,"max":23,"text":"Defense"},{"min":24,"max":24,"text":"Destiny"},{"min":25,"max":25,"text":"Disaster"},{"min":26,"max":26,"text":"Discovery"},{"min":27,"max":27,"text":"Disease"},{"min":28,"max":28,"text":"Dominion"},{"min":29,"max":29,"text":"Dream"},{"min":30,"max":30,"text":"Duty"},{"min":31,"max":31,"text":"Enemy"},{"min":32,"max":32,"text":"Expedition"},{"min":33,"max":33,"text":"Faction"},{"min":34,"max":34,"text":"Fame"},{"min":35,"max":35,"text":"Family"},{"min":36,"max":36,"text":"Fear"},{"min":37,"max":37,"text":"Fellowship"},{"min":38,"max":38,"text":"Freedom"},{"min":39,"max":39,"text":"Greed"},{"min":40,"max":40,"text":"Hardship"},{"min":41,"max":41,"text":"Hate"},{"min":42,"max":42,"text":"Health"},{"min":43,"max":43,"text":"History"},{"min":44,"max":44,"text":"Home"},{"min":45,"max":45,"text":"Honor"},{"min":46,"max":46,"text":"Hope"},{"min":47,"max":47,"text":"Humanity"},{"min":48,"max":48,"text":"Innocence"},{"min":49,"max":49,"text":"Knowledge"},{"min":50,"max":50,"text":"Labor"},{"min":51,"max":51,"text":"Language"},{"min":52,"max":52,"text":"Law"},{"min":53,"max":53,"text":"Legacy"},{"min":54,"max":54,"text":"Life"},{"min":55,"max":55,"text":"Love"},{"min":56,"max":56,"text":"Memory"},{"min":57,"max":57,"text":"Nature"},{"min":58,"max":58,"text":"Opportunity"},{"min":59,"max":59,"text":"Passage"},{"min":60,"max":60,"text":"Peace"},{"min":61,"max":61,"text":"Phenomenon"},{"min":62,"max":62,"text":"Possession"},{"min":63,"max":63,"text":"Power"},{"min":64,"max":64,"text":"Price"},{"min":65,"max":65,"text":"Pride"},{"min":66,"max":66,"text":"Prize"},{"min":67,"max":67,"text":"Prophesy"},{"min":68,"max":68,"text":"Protection"},{"min":69,"max":69,"text":"Quest"},{"min":70,"max":70,"text":"Relationship"},{"min":71,"max":71,"text":"Religion"},{"min":72,"max":72,"text":"Reputation"},{"min":73,"max":73,"text":"Resource"},{"min":74,"max":74,"text":"Revenge"},{"min":75,"max":75,"text":"Rival"},{"min":76,"max":76,"text":"Rumor"},{"min":77,"max":77,"text":"Safety"},{"min":78,"max":78,"text":"Sanctuary"},{"min":79,"max":79,"text":"Secret"},{"min":80,"max":80,"text":"Solution"},{"min":81,"max":81,"text":"Spirit"},{"min":82,"max":82,"text":"Stranger"},{"min":83,"max":83,"text":"Strategy"},{"min":84,"max":84,"text":"Strength"},{"min":85,"max":85,"text":"Superstition"},{"min":86,"max":86,"text":"Supply"},{"min":87,"max":87,"text":"Survival"},{"min":88,"max":88,"text":"Technology"},{"min":89,"max":89,"text":"Time"},{"min":90,"max":90,"text":"Tool"},{"min":91,"max":91,"text":"Trade"},{"min":92,"max":92,"text":"Truth"},{"min":93,"max":93,"text":"Vengeance"},{"min":94,"max":94,"text":"Vow"},{"min":95,"max":95,"text":"War"},{"min":96,"max":96,"text":"Warning"},{"min":97,"max":97,"text":"Weakness"},{"min":98,"max":98,"text":"Wealth"},{"min":99,"max":99,"text":"Weapon"},{"min":100,"max":100,"text":"World"}]},"descriptor":{"name":"Descriptor","dice":"1d100","rows":[{"min":1,"max":1,"text":"Abandoned"},{"min":2,"max":2,"text":"Abundant"},{"min":3,"max":3,"text":"Active"},{"min":4,"max":4,"text":"Advanced"},{"min":5,"max":5,"text":"Alien"},{"min":6,"max":6,"text":"Ancient"},{"min":7,"max":7,"text":"Archaic"},{"min":8,"max":8,"text":"Automated"},{"min":9,"max":9,"text":"Barren"},{"min":10,"max":10,"text":"Biological"},{"min":11,"max":11,"text":"Blighted"},{"min":12,"max":12,"text":"Blocked"},{"min":13,"max":13,"text":"Breached"},{"min":14,"max":14,"text":"Broken"},{"min":15,"max":15,"text":"Captured"},{"min":16,"max":16,"text":"Chaotic"},{"min":17,"max":17,"text":"Civilized"},{"min":18,"max":18,"text":"Collapsed"},{"min":19,"max":19,"text":"Colossal"},{"min":20,"max":20,"text":"Confined"},{"min":21,"max":21,"text":"Conspicuous"},{"min":22,"max":22,"text":"Constructed"},{"min":23,"max":23,"text":"Contested"},{"min":24,"max":24,"text":"Corrupted"},{"min":25,"max":25,"text":"Created"},{"min":26,"max":26,"text":"Damaged"},{"min":27,"max":27,"text":"Dead"},{"min":28,"max":28,"text":"Deadly"},{"min":29,"max":29,"text":"Decaying"},{"min":30,"max":30,"text":"Defended"},{"min":31,"max":31,"text":"Depleted"},{"min":32,"max":32,"text":"Desolate"},{"min":33,"max":33,"text":"Destroyed"},{"min":34,"max":34,"text":"Diverse"},{"min":35,"max":35,"text":"Empty"},{"min":36,"max":36,"text":"Engulfed"},{"min":37,"max":37,"text":"Ensnaring"},{"min":38,"max":38,"text":"Expansive"},{"min":39,"max":39,"text":"Exposed"},{"min":40,"max":40,"text":"Fiery"},{"min":41,"max":41,"text":"Foreboding"},{"min":42,"max":42,"text":"Forgotten"},{"min":43,"max":43,"text":"Forsaken"},{"min":44,"max":44,"text":"Fortified"},{"min":45,"max":45,"text":"Foul"},{"min":46,"max":46,"text":"Fragile"},{"min":47,"max":47,"text":"Frozen"},{"min":48,"max":48,"text":"Functional"},{"min":49,"max":49,"text":"Grim"},{"min":50,"max":50,"text":"Guarded"},{"min":51,"max":51,"text":"Haunted"},{"min":52,"max":52,"text":"Hidden"},{"min":53,"max":53,"text":"Hoarded"},{"min":54,"max":54,"text":"Hostile"},{"min":55,"max":55,"text":"Immersed"},{"min":56,"max":56,"text":"Inaccessible"},{"min":57,"max":57,"text":"Infested"},{"min":58,"max":58,"text":"Inhabited"},{"min":59,"max":59,"text":"Isolated"},{"min":60,"max":60,"text":"Living"},{"min":61,"max":61,"text":"Lost"},{"min":62,"max":62,"text":"Lush"},{"min":63,"max":63,"text":"Makeshift"},{"min":64,"max":64,"text":"Mechanical"},{"min":65,"max":65,"text":"Misleading"},{"min":66,"max":66,"text":"Moving"},{"min":67,"max":67,"text":"Mysterious"},{"min":68,"max":68,"text":"Natural"},{"min":69,"max":69,"text":"New"},{"min":70,"max":70,"text":"Obscured"},{"min":71,"max":71,"text":"Open"},{"min":72,"max":72,"text":"Peaceful"},{"min":73,"max":73,"text":"Perilous"},{"min":74,"max":74,"text":"Pillaged"},{"min":75,"max":75,"text":"Powerful"},{"min":76,"max":76,"text":"Preserved"},{"min":77,"max":77,"text":"Prominent"},{"min":78,"max":78,"text":"Protected"},{"min":79,"max":79,"text":"Radiant"},{"min":80,"max":80,"text":"Rare"},{"min":81,"max":81,"text":"Remote"},{"min":82,"max":82,"text":"Rich"},{"min":83,"max":83,"text":"Ruined"},{"min":84,"max":84,"text":"Sacred"},{"min":85,"max":85,"text":"Safe"},{"min":86,"max":86,"text":"Sealed"},{"min":87,"max":87,"text":"Secret"},{"min":88,"max":88,"text":"Settled"},{"min":89,"max":89,"text":"Shrouded"},{"min":90,"max":90,"text":"Stolen"},{"min":91,"max":91,"text":"Strange"},{"min":92,"max":92,"text":"Subsurface"},{"min":93,"max":93,"text":"Toxic"},{"min":94,"max":94,"text":"Trapped"},{"min":95,"max":95,"text":"Undiscovered"},{"min":96,"max":96,"text":"Unnatural"},{"min":97,"max":97,"text":"Unstable"},{"min":98,"max":98,"text":"Untamed"},{"min":99,"max":99,"text":"Valuable"},{"min":100,"max":100,"text":"Violent"}]},"focus":{"name":"Focus","dice":"1d100","rows":[{"min":1,"max":1,"text":"Alarm"},{"min":2,"max":2,"text":"Anomaly"},{"min":3,"max":3,"text":"Apparition"},{"min":4,"max":4,"text":"Archive"},{"min":5,"max":5,"text":"Art"},{"min":6,"max":6,"text":"Artifact"},{"min":7,"max":7,"text":"Atmosphere"},{"min":8,"max":8,"text":"Battleground"},{"min":9,"max":9,"text":"Beacon"},{"min":10,"max":10,"text":"Being"},{"min":11,"max":11,"text":"Blockade"},{"min":12,"max":12,"text":"Boundary"},{"min":13,"max":13,"text":"Cache"},{"min":14,"max":14,"text":"Cargo"},{"min":15,"max":15,"text":"Commodity"},{"min":16,"max":16,"text":"Confinement"},{"min":17,"max":17,"text":"Connection"},{"min":18,"max":18,"text":"Container"},{"min":19,"max":19,"text":"Creation"},{"min":20,"max":20,"text":"Creature"},{"min":21,"max":21,"text":"Crossing"},{"min":22,"max":22,"text":"Data"},{"min":23,"max":23,"text":"Debris"},{"min":24,"max":24,"text":"Device"},{"min":25,"max":25,"text":"Dimension"},{"min":26,"max":26,"text":"Discovery"},{"min":27,"max":27,"text":"Ecosystem"},{"min":28,"max":28,"text":"Enclosure"},{"min":29,"max":29,"text":"Energy"},{"min":30,"max":30,"text":"Environment"},{"min":31,"max":31,"text":"Equipment"},{"min":32,"max":32,"text":"Experiment"},{"min":33,"max":33,"text":"Facility"},{"min":34,"max":34,"text":"Faction"},{"min":35,"max":35,"text":"Fleet"},{"min":36,"max":36,"text":"Force"},{"min":37,"max":37,"text":"Fortification"},{"min":38,"max":38,"text":"Gas"},{"min":39,"max":39,"text":"Grave"},{"min":40,"max":40,"text":"Habitat"},{"min":41,"max":41,"text":"Hazard"},{"min":42,"max":42,"text":"Hideaway"},{"min":43,"max":43,"text":"Home"},{"min":44,"max":44,"text":"Illusion"},{"min":45,"max":45,"text":"Industry"},{"min":46,"max":46,"text":"Intelligence"},{"min":47,"max":47,"text":"Lair"},{"min":48,"max":48,"text":"Lifeform"},{"min":49,"max":49,"text":"Liquid"},{"min":50,"max":50,"text":"Machine"},{"min":51,"max":51,"text":"Material"},{"min":52,"max":52,"text":"Mechanism"},{"min":53,"max":53,"text":"Message"},{"min":54,"max":54,"text":"Mineral"},{"min":55,"max":55,"text":"Monument"},{"min":56,"max":56,"text":"Obstacle"},{"min":57,"max":57,"text":"Organism"},{"min":58,"max":58,"text":"Outbreak"},{"min":59,"max":59,"text":"Outpost"},{"min":60,"max":60,"text":"Path"},{"min":61,"max":61,"text":"People"},{"min":62,"max":62,"text":"Person"},{"min":63,"max":63,"text":"Plant"},{"min":64,"max":64,"text":"Portal"},{"min":65,"max":65,"text":"Reality"},{"min":66,"max":66,"text":"Refuge"},{"min":67,"max":67,"text":"Relic"},{"min":68,"max":68,"text":"Remains"},{"min":69,"max":69,"text":"Rendezvous"},{"min":70,"max":70,"text":"Resource"},{"min":71,"max":71,"text":"Route"},{"min":72,"max":72,"text":"Ruins"},{"min":73,"max":73,"text":"Salvage"},{"min":74,"max":74,"text":"Settlement"},{"min":75,"max":75,"text":"Shelter"},{"min":76,"max":76,"text":"Ship"},{"min":77,"max":77,"text":"Shortcut"},{"min":78,"max":78,"text":"Signal"},{"min":79,"max":79,"text":"Sound"},{"min":80,"max":80,"text":"Storage"},{"min":81,"max":81,"text":"Storm"},{"min":82,"max":82,"text":"Structure"},{"min":83,"max":83,"text":"Supply"},{"min":84,"max":84,"text":"Symbol"},{"min":85,"max":85,"text":"System"},{"min":86,"max":86,"text":"Technology"},{"min":87,"max":87,"text":"Terrain"},{"min":88,"max":88,"text":"Territory"},{"min":89,"max":89,"text":"Threshold"},{"min":90,"max":90,"text":"Time"},{"min":91,"max":91,"text":"Transport"},{"min":92,"max":92,"text":"Trap"},{"min":93,"max":93,"text":"Treasure"},{"min":94,"max":94,"text":"Vault"},{"min":95,"max":95,"text":"Vehicle"},{"min":96,"max":96,"text":"Viewpoint"},{"min":97,"max":97,"text":"Void"},{"min":98,"max":98,"text":"Weapon"},{"min":99,"max":99,"text":"World"},{"min":100,"max":100,"text":"Wreckage"}]}};
+
+    const log = document.getElementById('log');
+    const grid = document.getElementById('grid');
+    let first = true;
+
+    function logCard(spec) {
+      if (first) { log.innerHTML = ''; first = false; }
+      appendCard(log, spec);
+    }
+
+    function rollSingle(table, label, withRoll) {
+      const { roll, text } = rollTable(table);
+      logCard({ total: text, detailText: withRoll ? 'rolled ' + roll : null });
+      reportToNative(label + ': ' + text, text.slice(0, 4));
+    }
+
+    function rollActionTheme() {
+      const action = rollTable(CORE_TABLES.action);
+      const theme = rollTable(CORE_TABLES.theme);
+      const prompt = action.text + ' + ' + theme.text;
+      logCard({ total: prompt, detailText: 'Action ' + action.roll + ', Theme ' + theme.roll });
+      reportToNative(prompt, action.text.slice(0, 4));
+    }
+
+    const ORACLES = {
+      ask: {
+        label: 'Ask the Oracle',
+        hint: 'Ask a yes/no question, then pick how likely it is.',
+        buildTiles: () => Object.keys(ASK_TABLES).map((key) => ({
+          label: ASK_TABLES[key].name,
+          handler: () => rollSingle(ASK_TABLES[key], ASK_TABLES[key].name, true),
+        })),
+      },
+      core: {
+        label: 'Core Oracles',
+        hint: 'Roll Action + Theme for a prompt, or roll any of the four alone.',
+        buildTiles: () => [
+          { label: 'Action + Theme', handler: rollActionTheme },
+          { label: 'Action', handler: () => rollSingle(CORE_TABLES.action, 'Action', true) },
+          { label: 'Theme', handler: () => rollSingle(CORE_TABLES.theme, 'Theme', true) },
+          { label: 'Descriptor', handler: () => rollSingle(CORE_TABLES.descriptor, 'Descriptor', true) },
+          { label: 'Focus', handler: () => rollSingle(CORE_TABLES.focus, 'Focus', true) },
+        ],
+      },
+    };
+
+    function renderOracle(key) {
+      grid.innerHTML = '';
+      initOracleGrid(grid, ORACLES[key].buildTiles());
+      if (first) {
+        log.innerHTML = '<div class="empty">' + ORACLES[key].hint + '</div>';
+      }
+    }
+
+    const oracleTrigger = document.getElementById('oracleTrigger');
+    const oracleTriggerLabel = document.getElementById('oracleTriggerLabel');
+    const oracleMenu = document.getElementById('oracleMenu');
+
+    function openOracleMenu() {
+      oracleMenu.hidden = false;
+      oracleTrigger.setAttribute('aria-expanded', 'true');
+      document.addEventListener('click', handleOracleMenuOutsideClick, { capture: true });
+    }
+    function closeOracleMenu() {
+      oracleMenu.hidden = true;
+      oracleTrigger.setAttribute('aria-expanded', 'false');
+      document.removeEventListener('click', handleOracleMenuOutsideClick, { capture: true });
+    }
+    function handleOracleMenuOutsideClick(e) {
+      if (!oracleMenu.contains(e.target) && e.target !== oracleTrigger) closeOracleMenu();
+    }
+    oracleTrigger.addEventListener('click', () => {
+      if (oracleMenu.hidden) openOracleMenu(); else closeOracleMenu();
+    });
+
+    function selectOracle(key) {
+      oracleTriggerLabel.textContent = ORACLES[key].label;
+      oracleMenu.querySelectorAll('.oracle-menu-item').forEach((item) => {
+        item.setAttribute('aria-selected', item.dataset.key === key ? 'true' : 'false');
+      });
+      renderOracle(key);
+    }
+    oracleMenu.querySelectorAll('.oracle-menu-item').forEach((item) => {
+      item.addEventListener('click', () => {
+        selectOracle(item.dataset.key);
+        closeOracleMenu();
+      });
+    });
+
+    selectOracle('ask');
+  </script>
+</body>
+</html>
