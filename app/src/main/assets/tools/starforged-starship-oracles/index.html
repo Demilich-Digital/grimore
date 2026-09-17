@@ -1,0 +1,203 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Starforged Starship Oracles</title>
+<script src="../shared/bubble.js"></script>
+<link rel="stylesheet" href="../shared/theme.css">
+<style>
+  #grid { grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); }
+  .oracle-picker {
+    position: relative;
+    flex: 0 0 auto;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .oracle-trigger {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: var(--card);
+    border: 1.5px solid var(--line);
+    border-radius: 999px;
+    padding: 10px 16px;
+    font-family: "Figtree", sans-serif;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .oracle-trigger:focus {
+    outline: none;
+    border-color: var(--gem-d12);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--gem-d12) 25%, transparent);
+  }
+  .oracle-chevron { width: 16px; height: 16px; color: var(--muted); flex: 0 0 auto; transition: transform 160ms ease; }
+  .oracle-trigger[aria-expanded="true"] .oracle-chevron { transform: rotate(180deg); }
+  .oracle-menu {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    top: 100%;
+    margin-top: 6px;
+    background: var(--card);
+    border: 1.5px solid var(--line);
+    border-radius: 14px;
+    padding: 6px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+    z-index: 5;
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+  .oracle-menu[hidden] { display: none; }
+  .oracle-menu-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-family: "Figtree", sans-serif;
+    font-weight: 600;
+    font-size: 0.88rem;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .oracle-menu-item[aria-selected="true"] { color: var(--gem-d12); }
+  .oracle-menu-item:hover, .oracle-menu-item:focus {
+    outline: none;
+    background: color-mix(in srgb, var(--gem-d12) 14%, var(--card));
+  }
+</style>
+</head>
+<body>
+  <noscript>
+    <div style="padding:16px;font-family:system-ui,sans-serif;">
+      <h2>Starforged Starship Oracles</h2>
+      <p>This tool needs JavaScript, which is currently disabled in this WebView.</p>
+      <p>That shouldn't happen - the app enables it itself. Please report this bug.</p>
+    </div>
+  </noscript>
+
+  <div class="oracle-picker">
+    <button id="oracleTrigger" class="oracle-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
+      <span id="oracleTriggerLabel">Starship</span>
+      <svg class="oracle-chevron" viewBox="0 0 24 24" fill="none"><polyline points="6 9 12 15 18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div id="oracleMenu" class="oracle-menu" role="listbox" aria-label="Oracle" hidden>
+      <button type="button" class="oracle-menu-item" data-key="starship" role="option" aria-selected="true">Starship</button>
+      <button type="button" class="oracle-menu-item" data-key="mission" role="option" aria-selected="false">Mission</button>
+    </div>
+  </div>
+  <div id="log"></div>
+  <div id="grid"></div>
+
+  <script src="../shared/oracle.js"></script>
+  <script>
+    // Ironsworn: Starforged oracles, by Shawn Tomkin - CC BY 4.0
+    // (https://creativecommons.org/licenses/by/4.0). Sourced from Datasworn
+    // (https://github.com/rsek/datasworn). Rows are {min, max, text}; roll
+    // the table's die and find the row whose range contains it.
+
+const STARSHIP_TABLES = {"type":{"name":"Starship Type","dice":"1d100","rows":[{"min":1,"max":2,"text":"Carrier","text2":"Launches fighters"},{"min":3,"max":6,"text":"Corvette","text2":"Light attack ship"},{"min":7,"max":11,"text":"Courier","text2":"Fast transport"},{"min":12,"max":14,"text":"Cruiser","text2":"Medium attack ship"},{"min":15,"max":16,"text":"Dreadnought","text2":"Heavy attack ship"},{"min":17,"max":19,"text":"Escape pod","text2":"Survival craft"},{"min":20,"max":22,"text":"Foundry","text2":"Mobile construction platform"},{"min":23,"max":27,"text":"Harvester","text2":"Fuel or energy excavator"},{"min":28,"max":33,"text":"Hauler","text2":"Heavy transport"},{"min":34,"max":36,"text":"Hunter","text2":"Stealthy attack ship"},{"min":37,"max":38,"text":"Ironhome","text2":"Habitat"},{"min":39,"max":42,"text":"Mender","text2":"Utility or repair"},{"min":43,"max":47,"text":"Outbounder","text2":"Remote survey or research"},{"min":48,"max":50,"text":"Pennant","text2":"Command ship"},{"min":51,"max":56,"text":"Prospector","text2":"Mineral excavator"},{"min":57,"max":61,"text":"Reclaimer","text2":"Salvage or rescue"},{"min":62,"max":64,"text":"Shuttle","text2":"Short-range transport"},{"min":65,"max":67,"text":"Snub fighter","text2":"Small attack craft"},{"min":68,"max":82,"text":"Multipurpose","text2":"Starship Mission"},{"min":83,"max":84,"text":"Unusual or unknown"},{"min":85,"max":94,"text":"Fleet"},{"min":95,"max":100,"text":"Ships in conflict (roll twice)"}]},"fleet":{"name":"Fleet","dice":"1d100","rows":[{"min":1,"max":10,"text":"Battle fleet"},{"min":11,"max":25,"text":"Pirate wing"},{"min":26,"max":35,"text":"Raider horde"},{"min":36,"max":50,"text":"Salvager hive"},{"min":51,"max":60,"text":"Settler caravan"},{"min":61,"max":70,"text":"Trade caravan"},{"min":71,"max":90,"text":"Transport and escorts"},{"min":91,"max":100,"text":"Starship Mission"}]},"initial_contact":{"name":"Initial Contact","dice":"1d100","rows":[{"min":1,"max":3,"text":"Familiar"},{"min":4,"max":15,"text":"Friendly"},{"min":16,"max":25,"text":"Neutral / automated"},{"min":26,"max":35,"text":"Wary"},{"min":36,"max":40,"text":"Dismissive"},{"min":41,"max":50,"text":"Uncooperative"},{"min":51,"max":65,"text":"Hostile"},{"min":66,"max":80,"text":"Asking for help"},{"min":81,"max":85,"text":"In battle"},{"min":86,"max":90,"text":"Unresponsive"},{"min":91,"max":95,"text":"Destroyed"},{"min":96,"max":100,"text":"Derelict"}]},"first_look":{"name":"First Look","dice":"1d100","rows":[{"min":1,"max":4,"text":"Abnormal sensor readings"},{"min":5,"max":8,"text":"Brightly painted"},{"min":9,"max":13,"text":"Bristling with weapons"},{"min":14,"max":18,"text":"Dark or stealthy"},{"min":19,"max":23,"text":"Heavy armor"},{"min":24,"max":28,"text":"Immobile"},{"min":29,"max":33,"text":"Intimidating profile"},{"min":34,"max":37,"text":"Large sensor arrays"},{"min":38,"max":41,"text":"Leaking radiation"},{"min":42,"max":45,"text":"Low-profile or disguised"},{"min":46,"max":49,"text":"Modern or advanced design"},{"min":50,"max":54,"text":"Obsolete design"},{"min":55,"max":59,"text":"Obvious damage"},{"min":60,"max":63,"text":"Biological components"},{"min":64,"max":67,"text":"Ornate markings"},{"min":68,"max":71,"text":"Oversized engines"},{"min":72,"max":75,"text":"Prominent guild emblem"},{"min":76,"max":80,"text":"Refitted or repurposed hull"},{"min":81,"max":85,"text":"Scarred hull"},{"min":86,"max":90,"text":"Built from scrap"},{"min":91,"max":94,"text":"Towing or linked"},{"min":95,"max":100,"text":"Descriptor + Focus"}]},"starship_name":{"name":"Starship Name","dice":"1d100","rows":[{"min":1,"max":1,"text":"Arclight"},{"min":2,"max":2,"text":"Argent Arrow"},{"min":3,"max":3,"text":"Artemis"},{"min":4,"max":4,"text":"Astral Explorer"},{"min":5,"max":5,"text":"Atlas"},{"min":6,"max":6,"text":"Aurora"},{"min":7,"max":7,"text":"Avari\u2019s Wake"},{"min":8,"max":8,"text":"Banshee\u2019s Cry"},{"min":9,"max":9,"text":"Beowulf"},{"min":10,"max":10,"text":"Bloody Jaw"},{"min":11,"max":11,"text":"Broken Sword"},{"min":12,"max":12,"text":"Buccaneer"},{"min":13,"max":13,"text":"Cerelis Nine"},{"min":14,"max":14,"text":"Clarion Call"},{"min":15,"max":15,"text":"Dawn\u2019s Herald"},{"min":16,"max":16,"text":"Dead Reckoning"},{"min":17,"max":17,"text":"Drift Runner"},{"min":18,"max":18,"text":"Eclipse"},{"min":19,"max":19,"text":"Elara Five"},{"min":20,"max":20,"text":"Enchantress"},{"min":21,"max":21,"text":"Endurance"},{"min":22,"max":22,"text":"Excalibur"},{"min":23,"max":23,"text":"Eye of the Void"},{"min":24,"max":24,"text":"Fall of Icarus"},{"min":25,"max":25,"text":"Fallen Light"},{"min":26,"max":26,"text":"False Hope"},{"min":27,"max":27,"text":"Firebreak"},{"min":28,"max":28,"text":"First Light"},{"min":29,"max":29,"text":"Forge Flier"},{"min":30,"max":30,"text":"Fortune\u2019s Favor"},{"min":31,"max":31,"text":"Freya\u2019s Wrath"},{"min":32,"max":32,"text":"Ghost"},{"min":33,"max":33,"text":"Guiding Star"},{"min":34,"max":34,"text":"Hand of Fate"},{"min":35,"max":35,"text":"Herald of Doom"},{"min":36,"max":36,"text":"Implacable"},{"min":37,"max":37,"text":"Implicit"},{"min":38,"max":38,"text":"Inferno"},{"min":39,"max":39,"text":"Invictus"},{"min":40,"max":40,"text":"Iron Cairn"},{"min":41,"max":41,"text":"Karena\u2019s Reverie"},{"min":42,"max":42,"text":"Kraken"},{"min":43,"max":43,"text":"Kuno\u2019s Hammer"},{"min":44,"max":44,"text":"Lightline"},{"min":45,"max":45,"text":"Lodestar"},{"min":46,"max":46,"text":"Long Haul"},{"min":47,"max":47,"text":"Lost Fortune"},{"min":48,"max":48,"text":"Luminous Sorrow"},{"min":49,"max":49,"text":"Manta"},{"min":50,"max":50,"text":"Mercy"},{"min":51,"max":51,"text":"Mutara"},{"min":52,"max":52,"text":"Nebula Prowler"},{"min":53,"max":53,"text":"Newton\u2019s Folly"},{"min":54,"max":54,"text":"Nightfall"},{"min":55,"max":55,"text":"Nomad"},{"min":56,"max":56,"text":"Obsidian Trident"},{"min":57,"max":57,"text":"Onslaught"},{"min":58,"max":58,"text":"Orca"},{"min":59,"max":59,"text":"Outward Bound"},{"min":60,"max":60,"text":"Phantom"},{"min":61,"max":61,"text":"Photon"},{"min":62,"max":62,"text":"Poltergeist"},{"min":63,"max":63,"text":"Profit Margin"},{"min":64,"max":64,"text":"Raven\u2019s Call"},{"min":65,"max":65,"text":"Raya\u2019s Promise"},{"min":66,"max":66,"text":"Reaper"},{"min":67,"max":67,"text":"Reforged Hope"},{"min":68,"max":68,"text":"Relentless"},{"min":69,"max":69,"text":"Royal Signet"},{"min":70,"max":70,"text":"Rubicon"},{"min":71,"max":71,"text":"Sareea\u2019s Tribute"},{"min":72,"max":72,"text":"Second Chance"},{"min":73,"max":73,"text":"Shard of the Sun"},{"min":74,"max":74,"text":"Shattered Siege"},{"min":75,"max":75,"text":"Shattered Star"},{"min":76,"max":76,"text":"Silver Talon"},{"min":77,"max":77,"text":"Smoldering Flame"},{"min":78,"max":78,"text":"Sovereign Skies"},{"min":79,"max":79,"text":"Sparrowhawk"},{"min":80,"max":80,"text":"Stardust"},{"min":81,"max":81,"text":"Starfall"},{"min":82,"max":82,"text":"Stellar Hawk"},{"min":83,"max":83,"text":"Stormswept"},{"min":84,"max":84,"text":"Sundered Aegis"},{"min":85,"max":85,"text":"Sundown"},{"min":86,"max":86,"text":"Sureshot"},{"min":87,"max":87,"text":"Terminus Clipper"},{"min":88,"max":88,"text":"Terrapin"},{"min":89,"max":89,"text":"Timber Wolf"},{"min":90,"max":90,"text":"Tip of the Spear"},{"min":91,"max":91,"text":"Titan"},{"min":92,"max":92,"text":"Tormentor"},{"min":93,"max":93,"text":"Trithia Six"},{"min":94,"max":94,"text":"Ultraviolet"},{"min":95,"max":95,"text":"Valora\u2019s Comet"},{"min":96,"max":96,"text":"Vengeance"},{"min":97,"max":97,"text":"Venture"},{"min":98,"max":98,"text":"Vigilant"},{"min":99,"max":99,"text":"Voidtreader"},{"min":100,"max":100,"text":"Vulture"}]}};
+const MISSION_TABLES = {"terminus":{"name":"Terminus","dice":"1d100","rows":[{"min":1,"max":3,"text":"Blockade a location"},{"min":4,"max":6,"text":"Break a blockade"},{"min":7,"max":9,"text":"Collect a resource"},{"min":10,"max":11,"text":"Command others"},{"min":12,"max":14,"text":"Conduct diplomacy"},{"min":15,"max":17,"text":"Conduct espionage"},{"min":18,"max":20,"text":"Conduct piracy"},{"min":21,"max":23,"text":"Conduct research"},{"min":24,"max":26,"text":"Defend against an attack"},{"min":27,"max":29,"text":"Deliver messages or data"},{"min":30,"max":32,"text":"Establish a settlement"},{"min":33,"max":35,"text":"Evacuate a location"},{"min":36,"max":37,"text":"Explore a region"},{"min":38,"max":39,"text":"Hold prisoners"},{"min":40,"max":42,"text":"Hunt down another ship"},{"min":43,"max":45,"text":"Launch an attack"},{"min":46,"max":48,"text":"Patrol an area"},{"min":49,"max":51,"text":"Provide medical aid"},{"min":52,"max":54,"text":"Provide repairs"},{"min":55,"max":57,"text":"Provide shelter"},{"min":58,"max":59,"text":"Quarantine a danger"},{"min":60,"max":62,"text":"Raid a settlement"},{"min":63,"max":65,"text":"Resupply a settlement"},{"min":66,"max":68,"text":"Retrieve salvage"},{"min":69,"max":71,"text":"Search and rescue"},{"min":72,"max":74,"text":"Smuggle cargo"},{"min":75,"max":77,"text":"Survey a site"},{"min":78,"max":79,"text":"Test a technology"},{"min":80,"max":82,"text":"Transport cargo"},{"min":83,"max":85,"text":"Transport passengers"},{"min":86,"max":90,"text":"Action + Theme"},{"min":91,"max":100,"text":"Roll twice"}]},"outlands":{"name":"Outlands","dice":"1d100","rows":[{"min":1,"max":2,"text":"Blockade a location"},{"min":3,"max":4,"text":"Break a blockade"},{"min":5,"max":7,"text":"Collect a resource"},{"min":8,"max":9,"text":"Command others"},{"min":10,"max":11,"text":"Conduct diplomacy"},{"min":12,"max":13,"text":"Conduct espionage"},{"min":14,"max":16,"text":"Conduct piracy"},{"min":17,"max":20,"text":"Conduct research"},{"min":21,"max":24,"text":"Defend against an attack"},{"min":25,"max":28,"text":"Deliver messages or data"},{"min":29,"max":32,"text":"Establish a settlement"},{"min":33,"max":36,"text":"Evacuate a location"},{"min":37,"max":40,"text":"Explore a region"},{"min":41,"max":42,"text":"Hold prisoners"},{"min":43,"max":45,"text":"Hunt down another ship"},{"min":46,"max":48,"text":"Launch an attack"},{"min":49,"max":50,"text":"Patrol an area"},{"min":51,"max":53,"text":"Provide medical aid"},{"min":54,"max":56,"text":"Provide repairs"},{"min":57,"max":59,"text":"Provide shelter"},{"min":60,"max":61,"text":"Quarantine a danger"},{"min":62,"max":64,"text":"Raid a settlement"},{"min":65,"max":68,"text":"Resupply a settlement"},{"min":69,"max":71,"text":"Retrieve salvage"},{"min":72,"max":73,"text":"Search and rescue"},{"min":74,"max":75,"text":"Smuggle cargo"},{"min":76,"max":78,"text":"Survey a site"},{"min":79,"max":80,"text":"Test a technology"},{"min":81,"max":83,"text":"Transport cargo"},{"min":84,"max":85,"text":"Transport passengers"},{"min":86,"max":90,"text":"Action + Theme"},{"min":91,"max":100,"text":"Roll twice"}]},"expanse":{"name":"Expanse","dice":"1d100","rows":[{"min":1,"max":2,"text":"Blockade a location"},{"min":3,"max":4,"text":"Break a blockade"},{"min":5,"max":8,"text":"Collect a resource"},{"min":9,"max":10,"text":"Command others"},{"min":11,"max":12,"text":"Conduct diplomacy"},{"min":13,"max":14,"text":"Conduct espionage"},{"min":15,"max":16,"text":"Conduct piracy"},{"min":17,"max":22,"text":"Conduct research"},{"min":23,"max":25,"text":"Defend against an attack"},{"min":26,"max":29,"text":"Deliver messages or data"},{"min":30,"max":35,"text":"Establish a settlement"},{"min":36,"max":39,"text":"Evacuate a location"},{"min":40,"max":45,"text":"Explore a region"},{"min":46,"max":47,"text":"Hold prisoners"},{"min":48,"max":49,"text":"Hunt down another ship"},{"min":50,"max":51,"text":"Launch an attack"},{"min":52,"max":53,"text":"Patrol an area"},{"min":54,"max":55,"text":"Provide medical aid"},{"min":56,"max":57,"text":"Provide repairs"},{"min":58,"max":61,"text":"Provide shelter"},{"min":62,"max":63,"text":"Quarantine a danger"},{"min":64,"max":65,"text":"Raid a settlement"},{"min":66,"max":69,"text":"Resupply a settlement"},{"min":70,"max":71,"text":"Retrieve salvage"},{"min":72,"max":73,"text":"Search and rescue"},{"min":74,"max":75,"text":"Smuggle cargo"},{"min":76,"max":77,"text":"Survey a site"},{"min":78,"max":79,"text":"Test a technology"},{"min":80,"max":83,"text":"Transport cargo"},{"min":84,"max":85,"text":"Transport passengers"},{"min":86,"max":90,"text":"Action + Theme"},{"min":91,"max":100,"text":"Roll twice"}]}};
+
+    const log = document.getElementById('log');
+    const grid = document.getElementById('grid');
+    let first = true;
+
+    function logCard(spec) {
+      if (first) { log.innerHTML = ''; first = false; }
+      appendCard(log, spec);
+    }
+
+    function rollSingle(table, label, withRoll) {
+      const { roll, text } = rollTable(table);
+      logCard({ total: text, detailText: withRoll ? 'rolled ' + roll : null });
+      reportToNative(label + ': ' + text, text.slice(0, 4));
+    }
+
+    // For a table_text2 table (a result plus a summary column) - shows the
+    // summary as the detail line instead of the roll number.
+    function rollSingle2(table, label) {
+      const { text, row } = rollTable(table);
+      logCard({ total: text, detailText: row.text2 || null });
+      reportToNative(label + ': ' + text, text.slice(0, 4));
+    }
+
+
+    const ORACLES = {
+      starship: {
+        label: "Starship",
+        hint: "Roll to describe an encountered starship.",
+        buildTiles: () => [
+          { label: "Starship Type", handler: () => rollSingle2(STARSHIP_TABLES.type, "Starship Type") },
+          { label: "Fleet", handler: () => rollSingle(STARSHIP_TABLES.fleet, "Fleet", true) },
+          { label: "Initial Contact", handler: () => rollSingle(STARSHIP_TABLES.initial_contact, "Initial Contact", true) },
+          { label: "First Look", handler: () => rollSingle(STARSHIP_TABLES.first_look, "First Look", true) },
+          { label: "Starship Name", handler: () => rollSingle(STARSHIP_TABLES.starship_name, "Starship Name", true) }
+        ],
+      },
+      mission: {
+        label: "Mission",
+        hint: "Roll a starship's mission by how far from known space you are.",
+        buildTiles: () => [
+          { label: "Terminus", handler: () => rollSingle(MISSION_TABLES.terminus, "Terminus", true) },
+          { label: "Outlands", handler: () => rollSingle(MISSION_TABLES.outlands, "Outlands", true) },
+          { label: "Expanse", handler: () => rollSingle(MISSION_TABLES.expanse, "Expanse", true) }
+        ],
+      },
+    };
+
+    function renderOracle(key) {
+      grid.innerHTML = '';
+      initOracleGrid(grid, ORACLES[key].buildTiles());
+      if (first) {
+        log.innerHTML = '<div class="empty">' + ORACLES[key].hint + '</div>';
+      }
+    }
+
+    const oracleTrigger = document.getElementById('oracleTrigger');
+    const oracleTriggerLabel = document.getElementById('oracleTriggerLabel');
+    const oracleMenu = document.getElementById('oracleMenu');
+
+    function openOracleMenu() {
+      oracleMenu.hidden = false;
+      oracleTrigger.setAttribute('aria-expanded', 'true');
+      document.addEventListener('click', handleOracleMenuOutsideClick, { capture: true });
+    }
+    function closeOracleMenu() {
+      oracleMenu.hidden = true;
+      oracleTrigger.setAttribute('aria-expanded', 'false');
+      document.removeEventListener('click', handleOracleMenuOutsideClick, { capture: true });
+    }
+    function handleOracleMenuOutsideClick(e) {
+      if (!oracleMenu.contains(e.target) && e.target !== oracleTrigger) closeOracleMenu();
+    }
+    oracleTrigger.addEventListener('click', () => {
+      if (oracleMenu.hidden) openOracleMenu(); else closeOracleMenu();
+    });
+
+    function selectOracle(key) {
+      oracleTriggerLabel.textContent = ORACLES[key].label;
+      oracleMenu.querySelectorAll('.oracle-menu-item').forEach((item) => {
+        item.setAttribute('aria-selected', item.dataset.key === key ? 'true' : 'false');
+      });
+      renderOracle(key);
+    }
+    oracleMenu.querySelectorAll('.oracle-menu-item').forEach((item) => {
+      item.addEventListener('click', () => {
+        selectOracle(item.dataset.key);
+        closeOracleMenu();
+      });
+    });
+
+    selectOracle('starship');
+
+  </script>
+</body>
+</html>

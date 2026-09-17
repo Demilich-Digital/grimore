@@ -1,0 +1,217 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Starforged Precursor Vault Oracles</title>
+<script src="../shared/bubble.js"></script>
+<link rel="stylesheet" href="../shared/theme.css">
+<style>
+  #grid { grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); }
+  .oracle-picker {
+    position: relative;
+    flex: 0 0 auto;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .oracle-trigger {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: var(--card);
+    border: 1.5px solid var(--line);
+    border-radius: 999px;
+    padding: 10px 16px;
+    font-family: "Figtree", sans-serif;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .oracle-trigger:focus {
+    outline: none;
+    border-color: var(--gem-d12);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--gem-d12) 25%, transparent);
+  }
+  .oracle-chevron { width: 16px; height: 16px; color: var(--muted); flex: 0 0 auto; transition: transform 160ms ease; }
+  .oracle-trigger[aria-expanded="true"] .oracle-chevron { transform: rotate(180deg); }
+  .oracle-menu {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    top: 100%;
+    margin-top: 6px;
+    background: var(--card);
+    border: 1.5px solid var(--line);
+    border-radius: 14px;
+    padding: 6px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+    z-index: 5;
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+  .oracle-menu[hidden] { display: none; }
+  .oracle-menu-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-family: "Figtree", sans-serif;
+    font-weight: 600;
+    font-size: 0.88rem;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .oracle-menu-item[aria-selected="true"] { color: var(--gem-d12); }
+  .oracle-menu-item:hover, .oracle-menu-item:focus {
+    outline: none;
+    background: color-mix(in srgb, var(--gem-d12) 14%, var(--card));
+  }
+</style>
+</head>
+<body>
+  <noscript>
+    <div style="padding:16px;font-family:system-ui,sans-serif;">
+      <h2>Starforged Precursor Vault Oracles</h2>
+      <p>This tool needs JavaScript, which is currently disabled in this WebView.</p>
+      <p>That shouldn't happen - the app enables it itself. Please report this bug.</p>
+    </div>
+  </noscript>
+
+  <div class="oracle-picker">
+    <button id="oracleTrigger" class="oracle-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
+      <span id="oracleTriggerLabel">Vault</span>
+      <svg class="oracle-chevron" viewBox="0 0 24 24" fill="none"><polyline points="6 9 12 15 18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div id="oracleMenu" class="oracle-menu" role="listbox" aria-label="Oracle" hidden>
+      <button type="button" class="oracle-menu-item" data-key="vault" role="option" aria-selected="true">Vault</button>
+      <button type="button" class="oracle-menu-item" data-key="interior" role="option" aria-selected="false">Interior</button>
+      <button type="button" class="oracle-menu-item" data-key="sanctum" role="option" aria-selected="false">Sanctum</button>
+    </div>
+  </div>
+  <div id="log"></div>
+  <div id="grid"></div>
+
+  <script src="../shared/oracle.js"></script>
+  <script>
+    // Ironsworn: Starforged oracles, by Shawn Tomkin - CC BY 4.0
+    // (https://creativecommons.org/licenses/by/4.0). Sourced from Datasworn
+    // (https://github.com/rsek/datasworn). Rows are {min, max, text}; roll
+    // the table's die and find the row whose range contains it.
+
+const VAULT_TABLES = {"location":{"name":"Location","dice":"1d100","rows":[{"min":1,"max":50,"text":"Planetside"},{"min":51,"max":75,"text":"Orbital"},{"min":76,"max":100,"text":"Deep Space"}]},"scale":{"name":"Scale","dice":"1d100","rows":[{"min":1,"max":30,"text":"Minor, confined site"},{"min":31,"max":65,"text":"Typical site of limited scope"},{"min":66,"max":90,"text":"Large, elaborate site"},{"min":91,"max":99,"text":"Vast site of unfathomable complexity"},{"min":100,"max":100,"text":"World-spanning site or megastructure"}]},"form":{"name":"Form","dice":"1d100","rows":[{"min":1,"max":35,"text":"Structure"},{"min":36,"max":60,"text":"Vessel"},{"min":61,"max":80,"text":"Monument"},{"min":81,"max":95,"text":"Machine"},{"min":96,"max":100,"text":"Incomprehensible"}]},"shape":{"name":"Shape","dice":"1d100","rows":[{"min":1,"max":15,"text":"Practical or functional"},{"min":16,"max":20,"text":"Geometric (complex shape)"},{"min":21,"max":25,"text":"Geometric (cube)"},{"min":26,"max":30,"text":"Geometric (obelisk)"},{"min":31,"max":35,"text":"Geometric (pyramid)"},{"min":36,"max":40,"text":"Geometric (ring or torus)"},{"min":41,"max":45,"text":"Geometric (sphere)"},{"min":46,"max":55,"text":"Organic or curved"},{"min":56,"max":60,"text":"Platform or disc"},{"min":61,"max":65,"text":"Spires or towers"},{"min":66,"max":68,"text":"Domed"},{"min":69,"max":73,"text":"Spiky"},{"min":74,"max":76,"text":"Sculptural or effigy"},{"min":77,"max":79,"text":"Amorphous"},{"min":80,"max":85,"text":"Transforming"},{"min":86,"max":100,"text":"Roll twice"}]},"material":{"name":"Material","dice":"1d100","rows":[{"min":1,"max":30,"text":"Metallic (industrial)"},{"min":31,"max":60,"text":"Metallic (smooth)"},{"min":61,"max":70,"text":"Rocky or stone-like"},{"min":71,"max":74,"text":"Crystalline or glass-like"},{"min":75,"max":78,"text":"Bone-like"},{"min":79,"max":82,"text":"Flesh-like"},{"min":83,"max":86,"text":"Plant-like"},{"min":87,"max":88,"text":"Energy"},{"min":89,"max":90,"text":"Liquid"},{"min":91,"max":100,"text":"Roll twice"}]},"outer_first_look":{"name":"Outer First Look","dice":"1d100","rows":[{"min":1,"max":3,"text":"Corrupting its environment"},{"min":4,"max":7,"text":"Automated defenses"},{"min":8,"max":10,"text":"Breached exterior"},{"min":11,"max":14,"text":"Broken or fragmented"},{"min":15,"max":17,"text":"Camouflaged or hidden"},{"min":18,"max":20,"text":"Cavernous opening"},{"min":21,"max":23,"text":"Dispersed structures"},{"min":24,"max":26,"text":"Dreadful premonitions"},{"min":27,"max":30,"text":"Electromagnetic field"},{"min":31,"max":33,"text":"Embedded within terrain"},{"min":34,"max":36,"text":"Encased in an energy field"},{"min":37,"max":40,"text":"Energy core or conduit"},{"min":41,"max":43,"text":"Fractal patterns"},{"min":44,"max":47,"text":"Glyphs or symbols"},{"min":48,"max":51,"text":"Hazardous readings"},{"min":52,"max":54,"text":"Levitating or in motion"},{"min":55,"max":58,"text":"Lighted or illuminated"},{"min":59,"max":61,"text":"No obvious point of entry"},{"min":62,"max":64,"text":"Overgrown or entangled"},{"min":65,"max":67,"text":"Perfectly preserved"},{"min":68,"max":70,"text":"Phasing in and out of reality"},{"min":71,"max":73,"text":"Physical barrier"},{"min":74,"max":76,"text":"Pitted or scarred"},{"min":77,"max":79,"text":"Scaled for outsized beings"},{"min":80,"max":82,"text":"Shrouded in mist or haze"},{"min":83,"max":85,"text":"Signs of invaders"},{"min":86,"max":89,"text":"Sound or signal"},{"min":90,"max":92,"text":"Strong gravity well"},{"min":93,"max":95,"text":"Surrounded by destruction"},{"min":96,"max":100,"text":"Descriptor + Focus"}]}};
+const INTERIOR_TABLES = {"first_look":{"name":"Inner First Look","dice":"1d100","rows":[{"min":1,"max":3,"text":"Abnormal gravity"},{"min":4,"max":6,"text":"Automated defenses"},{"min":7,"max":9,"text":"Biological infestation"},{"min":10,"max":12,"text":"Carried tech is disrupted"},{"min":13,"max":15,"text":"Complex textures or patterns"},{"min":16,"max":18,"text":"Corpses of intruders"},{"min":19,"max":21,"text":"Damage and debris"},{"min":22,"max":24,"text":"Deteriorating spaces"},{"min":25,"max":27,"text":"Dissonant tones or music"},{"min":28,"max":30,"text":"Energy surges"},{"min":31,"max":33,"text":"Environment reacts to your presence"},{"min":34,"max":36,"text":"Evidence of looting or scavenging"},{"min":37,"max":39,"text":"Excessive cold"},{"min":40,"max":42,"text":"Excessive heat"},{"min":43,"max":45,"text":"Faint ambient lighting"},{"min":46,"max":48,"text":"Impenetrable darkness"},{"min":49,"max":51,"text":"Intense smell"},{"min":52,"max":54,"text":"Magnetic surfaces"},{"min":55,"max":57,"text":"Material does not match exterior"},{"min":58,"max":60,"text":"Ornate markings or symbols"},{"min":61,"max":63,"text":"Reactive lighting responds to your presence"},{"min":64,"max":66,"text":"Scale does not match exterior"},{"min":67,"max":69,"text":"Signs of invasive lifeforms"},{"min":70,"max":72,"text":"Surfaces respond to touch"},{"min":73,"max":75,"text":"Thick haze or smoke"},{"min":76,"max":78,"text":"Thick or fluid atmosphere"},{"min":79,"max":81,"text":"Thrumming or droning sound"},{"min":82,"max":84,"text":"Toxic atmosphere"},{"min":85,"max":87,"text":"Toxic residue"},{"min":88,"max":90,"text":"Well-preserved"},{"min":91,"max":93,"text":"Wet or humid"},{"min":94,"max":100,"text":"Descriptor + Focus"}]},"feature":{"name":"Interior Feature","dice":"1d100","rows":[{"min":1,"max":3,"text":"Ascending or descending path"},{"min":4,"max":6,"text":"Biological growths"},{"min":7,"max":8,"text":"Blood trail"},{"min":9,"max":10,"text":"Breached or ruptured area"},{"min":11,"max":13,"text":"Broken or inactive machinery"},{"min":14,"max":15,"text":"Clinging mist"},{"min":16,"max":18,"text":"Damage or debris"},{"min":19,"max":20,"text":"Echoing noises"},{"min":21,"max":22,"text":"Elevated path over chasm or shaft"},{"min":23,"max":25,"text":"Energy discharges"},{"min":26,"max":28,"text":"Enigmatic controls or terminal"},{"min":29,"max":30,"text":"Garden or invasive plant life"},{"min":31,"max":32,"text":"Inscrutable object lies dark and silent"},{"min":33,"max":35,"text":"Intersection or hub"},{"min":36,"max":38,"text":"Intricate symbols or pictographs"},{"min":39,"max":41,"text":"Looted or dismantled technology"},{"min":42,"max":44,"text":"Looted or empty containers"},{"min":45,"max":47,"text":"Mazelike passages"},{"min":48,"max":49,"text":"Moving platform or lift"},{"min":50,"max":52,"text":"Mummified or decayed corpses"},{"min":53,"max":55,"text":"Narrowing or widening path"},{"min":56,"max":58,"text":"Pooled liquid"},{"min":59,"max":61,"text":"Remains of intruders"},{"min":62,"max":63,"text":"Scattered bones"},{"min":64,"max":66,"text":"Scrawled markings"},{"min":67,"max":68,"text":"Signs of an attack or battle"},{"min":69,"max":71,"text":"Signs of invasive creatures"},{"min":72,"max":73,"text":"Surfaces honeycombed with openings"},{"min":74,"max":76,"text":"Unintelligible recorded message"},{"min":77,"max":79,"text":"Unintelligible whispers"},{"min":80,"max":82,"text":"Vaulted chamber"},{"min":83,"max":85,"text":"Vertical shaft"},{"min":86,"max":90,"text":"Transition into the Sanctum"},{"min":91,"max":95,"text":"Descriptor + Focus"},{"min":96,"max":100,"text":"Roll twice"}]},"peril":{"name":"Interior Peril","dice":"1d100","rows":[{"min":1,"max":5,"text":"Broken path"},{"min":6,"max":10,"text":"Change in atmosphere or environment"},{"min":11,"max":15,"text":"Corrosive environment"},{"min":16,"max":20,"text":"Dire warning left by other explorers"},{"min":21,"max":25,"text":"Foes close in"},{"min":26,"max":30,"text":"Fragile structural integrity"},{"min":31,"max":35,"text":"Hazardous path designed for traversal by other beings"},{"min":36,"max":40,"text":"Important gear malfunctions"},{"min":41,"max":45,"text":"Isolation or fear presses in"},{"min":46,"max":50,"text":"Mechanical trap"},{"min":51,"max":55,"text":"Mist or darkness conceals dangers"},{"min":56,"max":60,"text":"Puzzling mystery blocks the way"},{"min":61,"max":65,"text":"Radioactive hot spot"},{"min":66,"max":70,"text":"Rivals seek what lay within"},{"min":71,"max":75,"text":"Signs of a contagion"},{"min":76,"max":80,"text":"Signs of a lurking foe"},{"min":81,"max":85,"text":"Tempting location or object holds hidden dangers"},{"min":86,"max":90,"text":"Toxic atmosphere"},{"min":91,"max":95,"text":"Unnerving sound or sensation"},{"min":96,"max":99,"text":"Action + Theme"},{"min":100,"max":100,"text":"Roll twice"}]},"opportunity":{"name":"Interior Opportunity","dice":"1d100","rows":[{"min":1,"max":10,"text":"Clue points the way to your destination or target"},{"min":11,"max":20,"text":"Clue to a lifeform's nature or vulnerabilities"},{"min":21,"max":30,"text":"Helpful gear left by another explorer"},{"min":31,"max":40,"text":"Insight into the nature or history of this site"},{"min":41,"max":50,"text":"Intriguing device or artifact"},{"min":51,"max":60,"text":"Opening to get the drop on a foe"},{"min":61,"max":70,"text":"Opening to outmaneuver or escape a threat or foe"},{"min":71,"max":80,"text":"Salvageable resource"},{"min":81,"max":90,"text":"Secure area offers a moment of peace"},{"min":91,"max":100,"text":"Shortcut or less perilous path speeds your way"}]}};
+const SANCTUM_TABLES = {"purpose":{"name":"Vault Purpose","dice":"1d100","rows":[{"min":1,"max":3,"text":"Capture or control of other beings"},{"min":4,"max":6,"text":"Command or communication relay"},{"min":7,"max":9,"text":"Commemoration of an event"},{"min":10,"max":12,"text":"Conduit to mystical powers"},{"min":13,"max":16,"text":"Conservation of living specimens"},{"min":17,"max":20,"text":"Containment of a powerful being"},{"min":21,"max":24,"text":"Containment of dangerous creatures"},{"min":25,"max":27,"text":"Containment of weapons"},{"min":28,"max":31,"text":"Control of a destructive weapon"},{"min":32,"max":34,"text":"Generation of defenses or barriers"},{"min":35,"max":38,"text":"Generation or transformation of energy"},{"min":39,"max":41,"text":"Harvesting of resources"},{"min":42,"max":44,"text":"Interment of the dead"},{"min":45,"max":47,"text":"Manipulation of spacetime"},{"min":48,"max":50,"text":"Manufacturing of lifeforms"},{"min":51,"max":53,"text":"Manufacturing of machines or devices"},{"min":54,"max":56,"text":"Passage to another location"},{"min":57,"max":59,"text":"Preservation of an ancient intelligence"},{"min":60,"max":62,"text":"Preservation of maps or navigational data"},{"min":63,"max":66,"text":"Protection of a sacred artifact"},{"min":67,"max":69,"text":"Researching science or technology"},{"min":70,"max":73,"text":"Safekeeping of cultural records or memories"},{"min":74,"max":77,"text":"Shelter for inhabitants"},{"min":78,"max":80,"text":"Stockpiling of resources"},{"min":81,"max":83,"text":"Surveying or monitoring of a location"},{"min":84,"max":87,"text":"Transformation of terrain or environments"},{"min":88,"max":90,"text":"Worship of a god or being"},{"min":91,"max":95,"text":"Action + Theme"},{"min":96,"max":100,"text":"Roll twice"}]},"feature":{"name":"Sanctum Feature","dice":"1d100","rows":[{"min":1,"max":2,"text":"Abyssal pit or chasm"},{"min":3,"max":5,"text":"Altered gravity"},{"min":6,"max":7,"text":"Area filled with strange liquid"},{"min":8,"max":10,"text":"Area humming with aberrant energy"},{"min":11,"max":13,"text":"Blasted or wrecked area"},{"min":14,"max":16,"text":"Central chamber of immense proportions or grandeur"},{"min":17,"max":19,"text":"Colossal machine"},{"min":20,"max":21,"text":"Corrupted plant life"},{"min":22,"max":24,"text":"Enigmatic mechanisms come to life"},{"min":25,"max":26,"text":"Haze of spores or nanomachines"},{"min":27,"max":28,"text":"Incomprehensible architecture or geometry"},{"min":29,"max":31,"text":"Incongruent space contradicts the nature of this site"},{"min":32,"max":34,"text":"Inscrutable object emits sound and energy"},{"min":35,"max":37,"text":"Machinery fused with organic growths"},{"min":38,"max":40,"text":"Moving chamber or passage"},{"min":41,"max":43,"text":"Mutated remains of the dead"},{"min":44,"max":46,"text":"Nest of invasive creatures"},{"min":47,"max":49,"text":"Pockets or layers of altered atmosphere"},{"min":50,"max":51,"text":"Pods or chambers with preserved corpses"},{"min":52,"max":54,"text":"Pools of strange liquid"},{"min":55,"max":57,"text":"Pulsating surfaces"},{"min":58,"max":60,"text":"Rampant biological infestation"},{"min":61,"max":63,"text":"Repository of biological specimens"},{"min":64,"max":66,"text":"Sealed chamber"},{"min":67,"max":69,"text":"Sealed containers of inscrutable purpose"},{"min":70,"max":72,"text":"Simulated or illusionary environment"},{"min":73,"max":74,"text":"Surfaces covered in slime or fungus"},{"min":75,"max":76,"text":"Temporal distortions"},{"min":77,"max":79,"text":"Transforming spaces"},{"min":80,"max":82,"text":"Visions of this place in another time"},{"min":83,"max":85,"text":"Visions or reflections of another reality"},{"min":86,"max":88,"text":"Warped or misshapen spaces"},{"min":89,"max":90,"text":"Whispering voices speak to you"},{"min":91,"max":95,"text":"Descriptor + Focus"},{"min":96,"max":100,"text":"Roll twice"}]},"peril":{"name":"Sanctum Peril","dice":"1d100","rows":[{"min":1,"max":5,"text":"Camouflaged or transforming foe reveals itself"},{"min":6,"max":10,"text":"Confounding distortions of the timestream"},{"min":11,"max":15,"text":"Destructive environmental disturbance"},{"min":16,"max":20,"text":"Horrifying fate for a previous intruder"},{"min":21,"max":25,"text":"Important equipment rendered useless"},{"min":26,"max":30,"text":"Led astray or lured into danger by a manifestation or illusion"},{"min":31,"max":35,"text":"Lost the way or separated from others"},{"min":36,"max":40,"text":"Manifestations prey upon your weaknesses or worries"},{"min":41,"max":45,"text":"Other intruders have been corrupted or mutated by this place"},{"min":46,"max":50,"text":"Paranoia or suspicion takes hold"},{"min":51,"max":55,"text":"Path behind you is sealed"},{"min":56,"max":60,"text":"Powerful foe strikes without warning"},{"min":61,"max":65,"text":"Restless dead awaken"},{"min":66,"max":70,"text":"Scene of hideous violence or death"},{"min":71,"max":75,"text":"Snared in an unnatural trap"},{"min":76,"max":80,"text":"Spawning or swarming foes surround you"},{"min":81,"max":85,"text":"Sudden structural collapse or failure"},{"min":86,"max":90,"text":"Temptations to linger or remain in this site"},{"min":91,"max":95,"text":"You are marked by physical corruption or mutation"},{"min":96,"max":99,"text":"Action + Theme"},{"min":100,"max":100,"text":"Roll twice"}]},"opportunity":{"name":"Sanctum Opportunity","dice":"1d100","rows":[{"min":1,"max":10,"text":"Access to a secret or protected area"},{"min":11,"max":20,"text":"Clue points the way to your destination or target"},{"min":21,"max":30,"text":"Comforting illusion or vision"},{"min":31,"max":40,"text":"Control or terminal adjusts to accept your input"},{"min":41,"max":50,"text":"Deeper insight into the history or nature of this site"},{"min":51,"max":60,"text":"Device or artifact reveals its purpose"},{"min":61,"max":70,"text":"Environment adjusts to better suit you"},{"min":71,"max":80,"text":"Foes stand down or give way"},{"min":81,"max":90,"text":"Key offers control of a function or aspect of this site"},{"min":91,"max":100,"text":"Shortcut or less perilous path speeds your way"}]}};
+
+    const log = document.getElementById('log');
+    const grid = document.getElementById('grid');
+    let first = true;
+
+    function logCard(spec) {
+      if (first) { log.innerHTML = ''; first = false; }
+      appendCard(log, spec);
+    }
+
+    function rollSingle(table, label, withRoll) {
+      const { roll, text } = rollTable(table);
+      logCard({ total: text, detailText: withRoll ? 'rolled ' + roll : null });
+      reportToNative(label + ': ' + text, text.slice(0, 4));
+    }
+
+    // For a table_text2 table (a result plus a summary column) - shows the
+    // summary as the detail line instead of the roll number.
+    function rollSingle2(table, label) {
+      const { text, row } = rollTable(table);
+      logCard({ total: text, detailText: row.text2 || null });
+      reportToNative(label + ': ' + text, text.slice(0, 4));
+    }
+
+
+    const ORACLES = {
+      vault: {
+        label: "Vault",
+        hint: "Roll to sketch a precursor vault.",
+        buildTiles: () => [
+          { label: "Location", handler: () => rollSingle(VAULT_TABLES.location, "Location", true) },
+          { label: "Scale", handler: () => rollSingle(VAULT_TABLES.scale, "Scale", true) },
+          { label: "Form", handler: () => rollSingle(VAULT_TABLES.form, "Form", true) },
+          { label: "Shape", handler: () => rollSingle(VAULT_TABLES.shape, "Shape", true) },
+          { label: "Material", handler: () => rollSingle(VAULT_TABLES.material, "Material", true) },
+          { label: "Outer First Look", handler: () => rollSingle(VAULT_TABLES.outer_first_look, "Outer First Look", true) }
+        ],
+      },
+      interior: {
+        label: "Interior",
+        hint: "Roll for the vault's interior.",
+        buildTiles: () => [
+          { label: "Inner First Look", handler: () => rollSingle(INTERIOR_TABLES.first_look, "Inner First Look", true) },
+          { label: "Interior Feature", handler: () => rollSingle(INTERIOR_TABLES.feature, "Interior Feature", true) },
+          { label: "Interior Peril", handler: () => rollSingle(INTERIOR_TABLES.peril, "Interior Peril", true) },
+          { label: "Interior Opportunity", handler: () => rollSingle(INTERIOR_TABLES.opportunity, "Interior Opportunity", true) }
+        ],
+      },
+      sanctum: {
+        label: "Sanctum",
+        hint: "Roll for the vault's sanctum.",
+        buildTiles: () => [
+          { label: "Vault Purpose", handler: () => rollSingle(SANCTUM_TABLES.purpose, "Vault Purpose", true) },
+          { label: "Sanctum Feature", handler: () => rollSingle(SANCTUM_TABLES.feature, "Sanctum Feature", true) },
+          { label: "Sanctum Peril", handler: () => rollSingle(SANCTUM_TABLES.peril, "Sanctum Peril", true) },
+          { label: "Sanctum Opportunity", handler: () => rollSingle(SANCTUM_TABLES.opportunity, "Sanctum Opportunity", true) }
+        ],
+      },
+    };
+
+    function renderOracle(key) {
+      grid.innerHTML = '';
+      initOracleGrid(grid, ORACLES[key].buildTiles());
+      if (first) {
+        log.innerHTML = '<div class="empty">' + ORACLES[key].hint + '</div>';
+      }
+    }
+
+    const oracleTrigger = document.getElementById('oracleTrigger');
+    const oracleTriggerLabel = document.getElementById('oracleTriggerLabel');
+    const oracleMenu = document.getElementById('oracleMenu');
+
+    function openOracleMenu() {
+      oracleMenu.hidden = false;
+      oracleTrigger.setAttribute('aria-expanded', 'true');
+      document.addEventListener('click', handleOracleMenuOutsideClick, { capture: true });
+    }
+    function closeOracleMenu() {
+      oracleMenu.hidden = true;
+      oracleTrigger.setAttribute('aria-expanded', 'false');
+      document.removeEventListener('click', handleOracleMenuOutsideClick, { capture: true });
+    }
+    function handleOracleMenuOutsideClick(e) {
+      if (!oracleMenu.contains(e.target) && e.target !== oracleTrigger) closeOracleMenu();
+    }
+    oracleTrigger.addEventListener('click', () => {
+      if (oracleMenu.hidden) openOracleMenu(); else closeOracleMenu();
+    });
+
+    function selectOracle(key) {
+      oracleTriggerLabel.textContent = ORACLES[key].label;
+      oracleMenu.querySelectorAll('.oracle-menu-item').forEach((item) => {
+        item.setAttribute('aria-selected', item.dataset.key === key ? 'true' : 'false');
+      });
+      renderOracle(key);
+    }
+    oracleMenu.querySelectorAll('.oracle-menu-item').forEach((item) => {
+      item.addEventListener('click', () => {
+        selectOracle(item.dataset.key);
+        closeOracleMenu();
+      });
+    });
+
+    selectOracle('vault');
+
+  </script>
+</body>
+</html>

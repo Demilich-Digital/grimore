@@ -1,0 +1,308 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Starforged Derelict Oracles</title>
+<script src="../shared/bubble.js"></script>
+<link rel="stylesheet" href="../shared/theme.css">
+<style>
+  #grid { grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); }
+  .oracle-picker {
+    position: relative;
+    flex: 0 0 auto;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .oracle-trigger {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: var(--card);
+    border: 1.5px solid var(--line);
+    border-radius: 999px;
+    padding: 10px 16px;
+    font-family: "Figtree", sans-serif;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .oracle-trigger:focus {
+    outline: none;
+    border-color: var(--gem-d12);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--gem-d12) 25%, transparent);
+  }
+  .oracle-chevron { width: 16px; height: 16px; color: var(--muted); flex: 0 0 auto; transition: transform 160ms ease; }
+  .oracle-trigger[aria-expanded="true"] .oracle-chevron { transform: rotate(180deg); }
+  .oracle-menu {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    top: 100%;
+    margin-top: 6px;
+    background: var(--card);
+    border: 1.5px solid var(--line);
+    border-radius: 14px;
+    padding: 6px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+    z-index: 5;
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+  .oracle-menu[hidden] { display: none; }
+  .oracle-menu-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-family: "Figtree", sans-serif;
+    font-weight: 600;
+    font-size: 0.88rem;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .oracle-menu-item[aria-selected="true"] { color: var(--gem-d12); }
+  .oracle-menu-item:hover, .oracle-menu-item:focus {
+    outline: none;
+    background: color-mix(in srgb, var(--gem-d12) 14%, var(--card));
+  }
+</style>
+</head>
+<body>
+  <noscript>
+    <div style="padding:16px;font-family:system-ui,sans-serif;">
+      <h2>Starforged Derelict Oracles</h2>
+      <p>This tool needs JavaScript, which is currently disabled in this WebView.</p>
+      <p>That shouldn't happen - the app enables it itself. Please report this bug.</p>
+    </div>
+  </noscript>
+
+  <div class="oracle-picker">
+    <button id="oracleTrigger" class="oracle-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
+      <span id="oracleTriggerLabel">Derelict</span>
+      <svg class="oracle-chevron" viewBox="0 0 24 24" fill="none"><polyline points="6 9 12 15 18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div id="oracleMenu" class="oracle-menu" role="listbox" aria-label="Oracle" hidden>
+      <button type="button" class="oracle-menu-item" data-key="derelict" role="option" aria-selected="true">Derelict</button>
+      <button type="button" class="oracle-menu-item" data-key="access" role="option" aria-selected="false">Access</button>
+      <button type="button" class="oracle-menu-item" data-key="community" role="option" aria-selected="false">Community</button>
+      <button type="button" class="oracle-menu-item" data-key="engineering" role="option" aria-selected="false">Engineering</button>
+      <button type="button" class="oracle-menu-item" data-key="living" role="option" aria-selected="false">Living</button>
+      <button type="button" class="oracle-menu-item" data-key="medical" role="option" aria-selected="false">Medical</button>
+      <button type="button" class="oracle-menu-item" data-key="operations" role="option" aria-selected="false">Operations</button>
+      <button type="button" class="oracle-menu-item" data-key="production" role="option" aria-selected="false">Production</button>
+      <button type="button" class="oracle-menu-item" data-key="research" role="option" aria-selected="false">Research</button>
+      <button type="button" class="oracle-menu-item" data-key="type_by_location" role="option" aria-selected="false">Type by Location</button>
+      <button type="button" class="oracle-menu-item" data-key="zones" role="option" aria-selected="false">Zones</button>
+    </div>
+  </div>
+  <div id="log"></div>
+  <div id="grid"></div>
+
+  <script src="../shared/oracle.js"></script>
+  <script>
+    // Ironsworn: Starforged oracles, by Shawn Tomkin - CC BY 4.0
+    // (https://creativecommons.org/licenses/by/4.0). Sourced from Datasworn
+    // (https://github.com/rsek/datasworn). Rows are {min, max, text}; roll
+    // the table's die and find the row whose range contains it.
+
+const DERELICT_TABLES = {"location":{"name":"Location","dice":"1d100","rows":[{"min":1,"max":40,"text":"Planetside"},{"min":41,"max":60,"text":"Orbital"},{"min":61,"max":100,"text":"Deep Space"}]},"condition":{"name":"Condition","dice":"1d100","rows":[{"min":1,"max":10,"text":"Functional"},{"min":11,"max":30,"text":"Limited power"},{"min":31,"max":60,"text":"Cold and dark"},{"min":61,"max":90,"text":"Damaged or breached"},{"min":91,"max":98,"text":"Heavily damaged"},{"min":99,"max":100,"text":"Impending destruction"}]},"outer_first_look":{"name":"Outer First Look","dice":"1d100","rows":[{"min":1,"max":15,"text":"Blocked access"},{"min":16,"max":30,"text":"Corpses"},{"min":31,"max":45,"text":"Hazardous readings"},{"min":46,"max":50,"text":"Mutated structure"},{"min":51,"max":60,"text":"Odd orientation"},{"min":61,"max":65,"text":"Overgrown or entangled"},{"min":66,"max":80,"text":"Sending a signal or message"},{"min":81,"max":85,"text":"Signs that others are here"},{"min":86,"max":95,"text":"Stripped exterior"},{"min":96,"max":100,"text":"Time or reality distortions"}]},"inner_first_look":{"name":"Inner First Look","dice":"1d100","rows":[{"min":1,"max":3,"text":"Abnormal gravity"},{"min":4,"max":6,"text":"Active bots"},{"min":7,"max":9,"text":"Archaic equipment"},{"min":10,"max":12,"text":"Automated announcements"},{"min":13,"max":15,"text":"Biological infestation"},{"min":16,"max":18,"text":"Charred surfaces"},{"min":19,"max":21,"text":"Claw marks"},{"min":22,"max":24,"text":"Cluttered with debris"},{"min":25,"max":27,"text":"Corroded surfaces"},{"min":28,"max":30,"text":"Cramped spaces"},{"min":31,"max":33,"text":"Creaking hull"},{"min":34,"max":36,"text":"Esoteric writing or symbols"},{"min":37,"max":39,"text":"Evidence of new inhabitants"},{"min":40,"max":42,"text":"Exposed wiring or conduits"},{"min":43,"max":45,"text":"Flashing strobe lights"},{"min":46,"max":48,"text":"Fluctuating power"},{"min":49,"max":51,"text":"Haunting visions of the dead"},{"min":52,"max":54,"text":"Hazardous temperature"},{"min":55,"max":57,"text":"Heavy steam or moisture"},{"min":58,"max":60,"text":"Littered with corpses"},{"min":61,"max":63,"text":"Nesting or feeding creatures"},{"min":64,"max":66,"text":"Ornate furnishings"},{"min":67,"max":69,"text":"Scarred by gunfire"},{"min":70,"max":72,"text":"Sealed against intruders"},{"min":73,"max":75,"text":"Signs of looting or scavenging"},{"min":76,"max":78,"text":"Smell of decay"},{"min":79,"max":81,"text":"Splattered with blood"},{"min":82,"max":84,"text":"Temporal distortions"},{"min":85,"max":87,"text":"Thick haze or smoke"},{"min":88,"max":90,"text":"Unstable energy surges"},{"min":91,"max":93,"text":"Watchful AI"},{"min":94,"max":100,"text":"Descriptor + Focus"}]}};
+const ACCESS_TABLES = {"area":{"name":"Area","dice":"1d100","rows":[{"min":1,"max":50,"text":"Corridor"},{"min":51,"max":60,"text":"Stairs"},{"min":61,"max":70,"text":"Lift or elevator"},{"min":71,"max":80,"text":"Catwalk or bridge"},{"min":81,"max":85,"text":"Vertical shaft or ladder"},{"min":86,"max":90,"text":"Hub or intersection"},{"min":91,"max":95,"text":"Crawl space or duct"},{"min":96,"max":100,"text":"Airlock or external"}]},"feature":{"name":"Feature","dice":"1d100","rows":[{"min":1,"max":5,"text":"Abandoned gear"},{"min":6,"max":10,"text":"Blood trail"},{"min":11,"max":15,"text":"Breached door or hatch"},{"min":16,"max":20,"text":"Control or terminal station"},{"min":21,"max":25,"text":"Corpse"},{"min":26,"max":30,"text":"Dismantled equipment"},{"min":31,"max":35,"text":"Flashing strobes"},{"min":36,"max":40,"text":"Leaking pipes"},{"min":41,"max":45,"text":"Makeshift barricade"},{"min":46,"max":50,"text":"Opened or missing panels"},{"min":51,"max":55,"text":"Organic growths"},{"min":56,"max":60,"text":"Ruined bot"},{"min":61,"max":65,"text":"Scrawled warning"},{"min":66,"max":70,"text":"Sealed breach"},{"min":71,"max":75,"text":"Sounds of movement"},{"min":76,"max":80,"text":"Steam or smoke"},{"min":81,"max":85,"text":"Wandering bot"},{"min":86,"max":90,"text":"Windows or viewports"},{"min":91,"max":95,"text":"Wrecked passage or debris"},{"min":96,"max":100,"text":"Descriptor + Focus"}]},"peril":{"name":"Peril","dice":"1d100","rows":[{"min":1,"max":10,"text":"Alarm or failsafe is triggered"},{"min":11,"max":20,"text":"Automated defenses"},{"min":21,"max":30,"text":"Blocked or sealed path"},{"min":31,"max":40,"text":"Dreadful scene of death or violence"},{"min":41,"max":50,"text":"Foe closes in"},{"min":51,"max":60,"text":"Gear is failing or broken"},{"min":61,"max":70,"text":"Hazardous environmental change"},{"min":71,"max":80,"text":"Path is trapped"},{"min":81,"max":90,"text":"Unsettling sound or disturbance"},{"min":91,"max":98,"text":"Action + Theme"},{"min":99,"max":100,"text":"Roll twice"}]},"opportunity":{"name":"Opportunity","dice":"1d100","rows":[{"min":1,"max":20,"text":"Directions, shortcut, or alternate path"},{"min":21,"max":40,"text":"Encounter with a friendly survivor, explorer, or denizen"},{"min":41,"max":60,"text":"Hopeful signs of life"},{"min":61,"max":80,"text":"Opening to outmaneuver or escape a threat or foe"},{"min":81,"max":100,"text":"Useful equipment"}]}};
+const COMMUNITY_TABLES = {"area":{"name":"Area","dice":"1d100","rows":[{"min":1,"max":8,"text":"Bar or club"},{"min":9,"max":16,"text":"Classroom or education"},{"min":17,"max":24,"text":"Concourse or hub"},{"min":25,"max":32,"text":"Entertainment"},{"min":33,"max":40,"text":"Gym or fitness"},{"min":41,"max":48,"text":"Market or trade"},{"min":49,"max":56,"text":"Park or garden"},{"min":57,"max":64,"text":"Promenade or overlook"},{"min":65,"max":72,"text":"Restaurant or dining"},{"min":73,"max":80,"text":"Temple or chapel"},{"min":81,"max":85,"text":"New zone"},{"min":86,"max":100,"text":"New zone via Access"}]},"feature":{"name":"Feature","dice":"1d100","rows":[{"min":1,"max":8,"text":"Ad-hoc memorials"},{"min":9,"max":16,"text":"Art depicting historic event"},{"min":17,"max":24,"text":"Artificial environment"},{"min":25,"max":32,"text":"Automated announcements"},{"min":33,"max":40,"text":"Barricaded area"},{"min":41,"max":48,"text":"Gaming devices or interfaces"},{"min":49,"max":56,"text":"Graffiti or vandalization"},{"min":57,"max":64,"text":"Guard post or surveillance"},{"min":65,"max":72,"text":"Mass grave or corpses"},{"min":73,"max":80,"text":"Panoramic viewport"},{"min":81,"max":88,"text":"Rubble or debris"},{"min":89,"max":100,"text":"Descriptor + Focus"}]},"peril":{"name":"Peril","dice":"1d100","rows":[{"min":1,"max":10,"text":"Biological infestation"},{"min":11,"max":20,"text":"Breached or broken structure"},{"min":21,"max":30,"text":"Distressing signs of mass violence or death"},{"min":31,"max":40,"text":"Flooded environment"},{"min":41,"max":50,"text":"Foe lurks within concealment"},{"min":51,"max":60,"text":"Fragile structural integrity"},{"min":61,"max":70,"text":"Haunting vision of life here before the fall"},{"min":71,"max":80,"text":"Hazardous environmental change"},{"min":81,"max":90,"text":"Heartbreaking memento of lost lives"},{"min":91,"max":98,"text":"Action + Theme"},{"min":99,"max":100,"text":"Roll twice"}]},"opportunity":{"name":"Opportunity","dice":"1d100","rows":[{"min":1,"max":20,"text":"Culturally significant object or artifact"},{"min":21,"max":40,"text":"Salvageable goods or resources"},{"min":41,"max":60,"text":"Secure area offers a moment of peace"},{"min":61,"max":80,"text":"Terminal with access to site details"},{"min":81,"max":100,"text":"Valuable item"}]}};
+const ENGINEERING_TABLES = {"area":{"name":"Area","dice":"1d100","rows":[{"min":1,"max":8,"text":"Control room"},{"min":9,"max":16,"text":"Engine room or power core"},{"min":17,"max":24,"text":"Engineering offices"},{"min":25,"max":32,"text":"Equipment storage"},{"min":33,"max":40,"text":"Fuel or coolant tanks"},{"min":41,"max":48,"text":"Life support"},{"min":49,"max":56,"text":"Maintenance tube"},{"min":57,"max":64,"text":"Vehicle bay or garage"},{"min":65,"max":72,"text":"Water processing"},{"min":73,"max":80,"text":"Workshop"},{"min":81,"max":85,"text":"New zone"},{"min":86,"max":100,"text":"New zone via Access"}]},"feature":{"name":"Feature","dice":"1d100","rows":[{"min":1,"max":8,"text":"Cluttered workbench"},{"min":9,"max":16,"text":"Control terminal"},{"min":17,"max":24,"text":"Crane or lift"},{"min":25,"max":32,"text":"Disassembled equipment"},{"min":33,"max":40,"text":"Flickering status monitors"},{"min":41,"max":48,"text":"Jury-rigged equipment"},{"min":49,"max":56,"text":"Multilevel layout"},{"min":57,"max":64,"text":"Pipes and valves"},{"min":65,"max":72,"text":"Sharp ozone smell"},{"min":73,"max":80,"text":"Unfinished project"},{"min":81,"max":88,"text":"Utility bots"},{"min":89,"max":100,"text":"Descriptor + Focus"}]},"peril":{"name":"Peril","dice":"1d100","rows":[{"min":1,"max":10,"text":"Corrosive leak"},{"min":11,"max":20,"text":"Erratic utility bots"},{"min":21,"max":30,"text":"Failing equipment requires a specific part or skill"},{"min":31,"max":40,"text":"Fire or energy surge"},{"min":41,"max":50,"text":"Precarious or broken path"},{"min":51,"max":60,"text":"Radioactive hotspot"},{"min":61,"max":70,"text":"Sabotaged equipment"},{"min":71,"max":80,"text":"Shrouded atmosphere conceals a lurking foe"},{"min":81,"max":90,"text":"Unstable or failing power core"},{"min":91,"max":98,"text":"Action + Theme"},{"min":99,"max":100,"text":"Roll twice"}]},"opportunity":{"name":"Opportunity","dice":"1d100","rows":[{"min":1,"max":20,"text":"Advanced or experimental equipment"},{"min":21,"max":40,"text":"Chance to restore power or function"},{"min":41,"max":60,"text":"Helpful plans or schematics"},{"min":61,"max":80,"text":"Helpful utility bot"},{"min":81,"max":100,"text":"Useful tool or device"}]}};
+const LIVING_TABLES = {"area":{"name":"Area","dice":"1d100","rows":[{"min":1,"max":8,"text":"Food storage"},{"min":9,"max":16,"text":"Galley or kitchen"},{"min":17,"max":24,"text":"Laundry"},{"min":25,"max":32,"text":"Locker room or storage"},{"min":33,"max":40,"text":"Mess hall or dining"},{"min":41,"max":48,"text":"Observation lounge"},{"min":49,"max":56,"text":"Quarters (communal)"},{"min":57,"max":64,"text":"Quarters (individual)"},{"min":65,"max":72,"text":"Restroom or showers"},{"min":73,"max":80,"text":"Sleeping pods"},{"min":81,"max":85,"text":"New zone"},{"min":86,"max":100,"text":"New zone via Access"}]},"feature":{"name":"Feature","dice":"1d100","rows":[{"min":1,"max":8,"text":"Abandoned pet"},{"min":9,"max":16,"text":"Audible music"},{"min":17,"max":24,"text":"Cherished personal item"},{"min":25,"max":32,"text":"Failed barricade"},{"min":33,"max":40,"text":"Half-eaten food"},{"min":41,"max":48,"text":"Messages from loved ones"},{"min":49,"max":56,"text":"Ransacked belongings"},{"min":57,"max":64,"text":"Remains of the dead"},{"min":65,"max":72,"text":"Scuttling vermin"},{"min":73,"max":80,"text":"Shrine or altar"},{"min":81,"max":88,"text":"Unusual art"},{"min":89,"max":100,"text":"Descriptor + Focus"}]},"peril":{"name":"Peril","dice":"1d100","rows":[{"min":1,"max":10,"text":"Booby trap"},{"min":11,"max":20,"text":"Distressing written message"},{"min":21,"max":30,"text":"Disturbing evidence of exploitive living conditions"},{"min":31,"max":40,"text":"Dreadful scene of death or violence"},{"min":41,"max":50,"text":"Lured into danger by signs of life"},{"min":51,"max":60,"text":"Recorded message reveals a threat or complication"},{"min":61,"max":70,"text":"Sealed door or hatch blocks access"},{"min":71,"max":80,"text":"Signs of unwelcome invaders"},{"min":81,"max":90,"text":"Unsettling sound or disturbance"},{"min":91,"max":98,"text":"Action + Theme"},{"min":99,"max":100,"text":"Roll twice"}]},"opportunity":{"name":"Opportunity","dice":"1d100","rows":[{"min":1,"max":20,"text":"Culturally significant object or artifact"},{"min":21,"max":40,"text":"Hidden stash of valuable contraband"},{"min":41,"max":60,"text":"Intact barricade or protected area"},{"min":61,"max":80,"text":"Recorded message reveals helpful aspects of this site"},{"min":81,"max":100,"text":"Useful personal gear"}]}};
+const MEDICAL_TABLES = {"area":{"name":"Area","dice":"1d100","rows":[{"min":1,"max":8,"text":"Crematorium"},{"min":9,"max":16,"text":"Emergency or triage"},{"min":17,"max":24,"text":"Isolation or containment"},{"min":25,"max":32,"text":"Medical lab"},{"min":33,"max":40,"text":"Medical offices"},{"min":41,"max":48,"text":"Morgue"},{"min":49,"max":56,"text":"Operating room"},{"min":57,"max":64,"text":"Pharmacy or drug locker"},{"min":65,"max":72,"text":"Prosthetics workshop"},{"min":73,"max":80,"text":"Ward or clinic"},{"min":81,"max":85,"text":"New zone"},{"min":86,"max":100,"text":"New zone via Access"}]},"feature":{"name":"Feature","dice":"1d100","rows":[{"min":1,"max":8,"text":"Autopsied corpse"},{"min":9,"max":16,"text":"Biological specimens"},{"min":17,"max":24,"text":"Blood spatter or pools"},{"min":25,"max":32,"text":"Bloody medical supplies"},{"min":33,"max":40,"text":"Broken prosthetics"},{"min":41,"max":48,"text":"Corpse of a healer"},{"min":49,"max":56,"text":"Dissected specimen"},{"min":57,"max":64,"text":"Improvised overflow beds"},{"min":65,"max":72,"text":"Medical monitors"},{"min":73,"max":80,"text":"Medical records or scans"},{"min":81,"max":88,"text":"Stacks of body bags"},{"min":89,"max":100,"text":"Descriptor + Focus"}]},"peril":{"name":"Peril","dice":"1d100","rows":[{"min":1,"max":10,"text":"Disgusting sight / smell"},{"min":11,"max":20,"text":"Disturbing evidence of medical misconduct"},{"min":21,"max":30,"text":"Erratic medical bots"},{"min":31,"max":40,"text":"Evidence of a virulent disease"},{"min":41,"max":50,"text":"Malfunctioning medical equipment"},{"min":51,"max":60,"text":"Repercussions of a medical experiment"},{"min":61,"max":70,"text":"Restless dead"},{"min":71,"max":80,"text":"Signs of a horrific death"},{"min":81,"max":90,"text":"Signs of broken quarantine"},{"min":91,"max":98,"text":"Action + Theme"},{"min":99,"max":100,"text":"Roll twice"}]},"opportunity":{"name":"Opportunity","dice":"1d100","rows":[{"min":1,"max":20,"text":"Cache of medicine"},{"min":21,"max":40,"text":"Clues to a medical mystery"},{"min":41,"max":60,"text":"Helpful medical bot"},{"min":61,"max":80,"text":"Unusual or rare specimen"},{"min":81,"max":100,"text":"Useful medical equipment"}]}};
+const OPERATIONS_TABLES = {"area":{"name":"Area","dice":"1d100","rows":[{"min":1,"max":8,"text":"Admin or command offices"},{"min":9,"max":16,"text":"Armory"},{"min":17,"max":24,"text":"Bridge or command center"},{"min":25,"max":32,"text":"Brig or cells"},{"min":33,"max":40,"text":"Comms center"},{"min":41,"max":48,"text":"Computer core"},{"min":49,"max":56,"text":"Conference or briefing room"},{"min":57,"max":64,"text":"Landing bay or hangar"},{"min":65,"max":72,"text":"Lounge"},{"min":73,"max":80,"text":"Security"},{"min":81,"max":85,"text":"New zone"},{"min":86,"max":100,"text":"New zone via Access"}]},"feature":{"name":"Feature","dice":"1d100","rows":[{"min":1,"max":8,"text":"Automated warning"},{"min":9,"max":16,"text":"Buckled blast doors"},{"min":17,"max":24,"text":"Control terminal"},{"min":25,"max":32,"text":"Emergency lighting"},{"min":33,"max":40,"text":"EV suit storage"},{"min":41,"max":48,"text":"Hissing comms channel"},{"min":49,"max":56,"text":"Intricate control panels"},{"min":57,"max":64,"text":"Map of the site"},{"min":65,"max":72,"text":"Recorded message"},{"min":73,"max":80,"text":"Video surveillance monitors"},{"min":81,"max":88,"text":"Written logs"},{"min":89,"max":100,"text":"Descriptor + Focus"}]},"peril":{"name":"Peril","dice":"1d100","rows":[{"min":1,"max":10,"text":"Automated defenses target you"},{"min":11,"max":20,"text":"Broken equipment limits control"},{"min":21,"max":30,"text":"Coded message or puzzling security device"},{"min":31,"max":40,"text":"Discouraging evidence of failed plans or defenses"},{"min":41,"max":50,"text":"Displays reveal a new threat elsewhere in this site"},{"min":51,"max":60,"text":"Failing power"},{"min":61,"max":70,"text":"Hostile AI"},{"min":71,"max":80,"text":"Sealed blast doors block access"},{"min":81,"max":90,"text":"Sensors indicate the arrival of an external threat"},{"min":91,"max":98,"text":"Action + Theme"},{"min":99,"max":100,"text":"Roll twice"}]},"opportunity":{"name":"Opportunity","dice":"1d100","rows":[{"min":1,"max":20,"text":"Cache of weapons or ammo"},{"min":21,"max":40,"text":"Helpful AI"},{"min":41,"max":60,"text":"Keycard or access code"},{"min":61,"max":80,"text":"Log offers insight into this site's downfall"},{"min":81,"max":100,"text":"Secure area offers a moment of peace"}]}};
+const PRODUCTION_TABLES = {"area":{"name":"Area","dice":"1d100","rows":[{"min":1,"max":8,"text":"Airlock or staging area"},{"min":9,"max":16,"text":"Assembly or processing"},{"min":17,"max":24,"text":"Cargo bay"},{"min":25,"max":32,"text":"Equipment storage"},{"min":33,"max":40,"text":"Exosuit bay"},{"min":41,"max":48,"text":"Harvesting or mining platform"},{"min":49,"max":56,"text":"Monitoring or control room"},{"min":57,"max":64,"text":"Processed goods storage"},{"min":65,"max":72,"text":"Raw materials storage"},{"min":73,"max":80,"text":"Scrapyard"},{"min":81,"max":85,"text":"New zone"},{"min":86,"max":100,"text":"New zone via Access"}]},"feature":{"name":"Feature","dice":"1d100","rows":[{"min":1,"max":8,"text":"Cargo lifts"},{"min":9,"max":16,"text":"Control panels"},{"min":17,"max":24,"text":"Disassembled machinery"},{"min":25,"max":32,"text":"Elevated walkways"},{"min":33,"max":40,"text":"Environment suits"},{"min":41,"max":48,"text":"Ill-fated workers"},{"min":49,"max":56,"text":"Immense machinery"},{"min":57,"max":64,"text":"Sealed or locked containers"},{"min":65,"max":72,"text":"Tools"},{"min":73,"max":80,"text":"Vats of chemicals or gas"},{"min":81,"max":88,"text":"Written manifest"},{"min":89,"max":100,"text":"Descriptor + Focus"}]},"peril":{"name":"Peril","dice":"1d100","rows":[{"min":1,"max":10,"text":"Claustrophobic spaces"},{"min":11,"max":20,"text":"Dangerous machinery"},{"min":21,"max":30,"text":"Disturbing evidence of exploited labor"},{"min":31,"max":40,"text":"Extreme temperatures"},{"min":41,"max":50,"text":"Hazardous materials"},{"min":51,"max":60,"text":"Impending industrial disaster"},{"min":61,"max":70,"text":"Malfunctioning automation"},{"min":71,"max":80,"text":"Rivals seek to secure these resources"},{"min":81,"max":90,"text":"Signs of an unearthed or manufactured threat"},{"min":91,"max":98,"text":"Action + Theme"},{"min":99,"max":100,"text":"Roll twice"}]},"opportunity":{"name":"Opportunity","dice":"1d100","rows":[{"min":1,"max":20,"text":"Helpful vehicle or transport"},{"min":21,"max":40,"text":"Rare or valuable resource"},{"min":41,"max":60,"text":"Salvageable materials"},{"min":61,"max":80,"text":"Useful equipment"},{"min":81,"max":100,"text":"Valuable cargo"}]}};
+const RESEARCH_TABLES = {"area":{"name":"Area","dice":"1d100","rows":[{"min":1,"max":8,"text":"Clean room"},{"min":9,"max":16,"text":"Cold storage"},{"min":17,"max":24,"text":"Creature or animal pens"},{"min":25,"max":32,"text":"Decontamination room"},{"min":33,"max":40,"text":"Hazardous material storage"},{"min":41,"max":48,"text":"Hydroponics or agriculture"},{"min":49,"max":56,"text":"Isolation or containment"},{"min":57,"max":64,"text":"Lab"},{"min":65,"max":72,"text":"Library or records"},{"min":73,"max":80,"text":"Secure vault"},{"min":81,"max":85,"text":"New zone"},{"min":86,"max":100,"text":"New zone via Access"}]},"feature":{"name":"Feature","dice":"1d100","rows":[{"min":1,"max":8,"text":"Aquarium or tank"},{"min":9,"max":16,"text":"Biological specimens"},{"min":17,"max":24,"text":"Bones or fossils"},{"min":25,"max":32,"text":"Broken equipment"},{"min":33,"max":40,"text":"Cryptic research notes"},{"min":41,"max":48,"text":"Hastily destroyed data"},{"min":49,"max":56,"text":"Hazmat suits"},{"min":57,"max":64,"text":"Inscrutable artifact"},{"min":65,"max":72,"text":"Invasive plant growth"},{"min":73,"max":80,"text":"Recorded research log"},{"min":81,"max":88,"text":"Spilled chemicals"},{"min":89,"max":100,"text":"Descriptor + Focus"}]},"peril":{"name":"Peril","dice":"1d100","rows":[{"min":1,"max":10,"text":"Automated containment protocols are activated"},{"min":11,"max":20,"text":"Biological infestation"},{"min":21,"max":30,"text":"Dangerous specimen"},{"min":31,"max":40,"text":"Disturbing outcome of a failed experiment"},{"min":41,"max":50,"text":"Evidence of sinister experiments"},{"min":51,"max":60,"text":"Fragile vault holds a dire threat"},{"min":61,"max":70,"text":"Signs of broken containment"},{"min":71,"max":80,"text":"Toxic environment"},{"min":81,"max":90,"text":"Unstable technology"},{"min":91,"max":98,"text":"Action + Theme"},{"min":99,"max":100,"text":"Roll twice"}]},"opportunity":{"name":"Opportunity","dice":"1d100","rows":[{"min":1,"max":20,"text":"Helpful research data"},{"min":21,"max":40,"text":"Records of a notable discovery"},{"min":41,"max":60,"text":"Specialized research tools"},{"min":61,"max":80,"text":"Unique prototype"},{"min":81,"max":100,"text":"Useful navigational data"}]}};
+const TYPE_BY_LOCATION_TABLES = {"planetside":{"name":"Planetside","dice":"1d100","rows":[{"min":1,"max":25,"text":"Starship"},{"min":26,"max":100,"text":"Settlement"}]},"orbital":{"name":"Orbital","dice":"1d100","rows":[{"min":1,"max":40,"text":"Starship"},{"min":41,"max":100,"text":"Settlement"}]},"deep_space":{"name":"Deep Space","dice":"1d100","rows":[{"min":1,"max":75,"text":"Starship"},{"min":76,"max":100,"text":"Settlement"}]}};
+const ZONES_TABLES = {"starship":{"name":"Starship","dice":"1d100","rows":[{"min":null,"max":null,"text":"Access"},{"min":1,"max":5,"text":"Community"},{"min":6,"max":30,"text":"Engineering"},{"min":31,"max":55,"text":"Living"},{"min":56,"max":65,"text":"Medical"},{"min":66,"max":85,"text":"Operations"},{"min":86,"max":90,"text":"Production"},{"min":91,"max":100,"text":"Research"}]},"settlement":{"name":"Settlement","dice":"1d100","rows":[{"min":null,"max":null,"text":"Access"},{"min":1,"max":20,"text":"Community"},{"min":21,"max":30,"text":"Engineering"},{"min":31,"max":50,"text":"Living"},{"min":51,"max":60,"text":"Medical"},{"min":61,"max":70,"text":"Operations"},{"min":71,"max":90,"text":"Production"},{"min":91,"max":100,"text":"Research"}]}};
+
+    const log = document.getElementById('log');
+    const grid = document.getElementById('grid');
+    let first = true;
+
+    function logCard(spec) {
+      if (first) { log.innerHTML = ''; first = false; }
+      appendCard(log, spec);
+    }
+
+    function rollSingle(table, label, withRoll) {
+      const { roll, text } = rollTable(table);
+      logCard({ total: text, detailText: withRoll ? 'rolled ' + roll : null });
+      reportToNative(label + ': ' + text, text.slice(0, 4));
+    }
+
+    // For a table_text2 table (a result plus a summary column) - shows the
+    // summary as the detail line instead of the roll number.
+    function rollSingle2(table, label) {
+      const { text, row } = rollTable(table);
+      logCard({ total: text, detailText: row.text2 || null });
+      reportToNative(label + ': ' + text, text.slice(0, 4));
+    }
+
+
+    const ORACLES = {
+      derelict: {
+        label: "Derelict",
+        hint: "Roll to sketch a derelict.",
+        buildTiles: () => [
+          { label: "Location", handler: () => rollSingle(DERELICT_TABLES.location, "Location", true) },
+          { label: "Condition", handler: () => rollSingle(DERELICT_TABLES.condition, "Condition", true) },
+          { label: "Outer First Look", handler: () => rollSingle(DERELICT_TABLES.outer_first_look, "Outer First Look", true) },
+          { label: "Inner First Look", handler: () => rollSingle(DERELICT_TABLES.inner_first_look, "Inner First Look", true) }
+        ],
+      },
+      access: {
+        label: "Access",
+        hint: "Roll for the Access zone.",
+        buildTiles: () => [
+          { label: "Area", handler: () => rollSingle(ACCESS_TABLES.area, "Area", true) },
+          { label: "Feature", handler: () => rollSingle(ACCESS_TABLES.feature, "Feature", true) },
+          { label: "Peril", handler: () => rollSingle(ACCESS_TABLES.peril, "Peril", true) },
+          { label: "Opportunity", handler: () => rollSingle(ACCESS_TABLES.opportunity, "Opportunity", true) }
+        ],
+      },
+      community: {
+        label: "Community",
+        hint: "Roll for the Community zone.",
+        buildTiles: () => [
+          { label: "Area", handler: () => rollSingle(COMMUNITY_TABLES.area, "Area", true) },
+          { label: "Feature", handler: () => rollSingle(COMMUNITY_TABLES.feature, "Feature", true) },
+          { label: "Peril", handler: () => rollSingle(COMMUNITY_TABLES.peril, "Peril", true) },
+          { label: "Opportunity", handler: () => rollSingle(COMMUNITY_TABLES.opportunity, "Opportunity", true) }
+        ],
+      },
+      engineering: {
+        label: "Engineering",
+        hint: "Roll for the Engineering zone.",
+        buildTiles: () => [
+          { label: "Area", handler: () => rollSingle(ENGINEERING_TABLES.area, "Area", true) },
+          { label: "Feature", handler: () => rollSingle(ENGINEERING_TABLES.feature, "Feature", true) },
+          { label: "Peril", handler: () => rollSingle(ENGINEERING_TABLES.peril, "Peril", true) },
+          { label: "Opportunity", handler: () => rollSingle(ENGINEERING_TABLES.opportunity, "Opportunity", true) }
+        ],
+      },
+      living: {
+        label: "Living",
+        hint: "Roll for the Living zone.",
+        buildTiles: () => [
+          { label: "Area", handler: () => rollSingle(LIVING_TABLES.area, "Area", true) },
+          { label: "Feature", handler: () => rollSingle(LIVING_TABLES.feature, "Feature", true) },
+          { label: "Peril", handler: () => rollSingle(LIVING_TABLES.peril, "Peril", true) },
+          { label: "Opportunity", handler: () => rollSingle(LIVING_TABLES.opportunity, "Opportunity", true) }
+        ],
+      },
+      medical: {
+        label: "Medical",
+        hint: "Roll for the Medical zone.",
+        buildTiles: () => [
+          { label: "Area", handler: () => rollSingle(MEDICAL_TABLES.area, "Area", true) },
+          { label: "Feature", handler: () => rollSingle(MEDICAL_TABLES.feature, "Feature", true) },
+          { label: "Peril", handler: () => rollSingle(MEDICAL_TABLES.peril, "Peril", true) },
+          { label: "Opportunity", handler: () => rollSingle(MEDICAL_TABLES.opportunity, "Opportunity", true) }
+        ],
+      },
+      operations: {
+        label: "Operations",
+        hint: "Roll for the Operations zone.",
+        buildTiles: () => [
+          { label: "Area", handler: () => rollSingle(OPERATIONS_TABLES.area, "Area", true) },
+          { label: "Feature", handler: () => rollSingle(OPERATIONS_TABLES.feature, "Feature", true) },
+          { label: "Peril", handler: () => rollSingle(OPERATIONS_TABLES.peril, "Peril", true) },
+          { label: "Opportunity", handler: () => rollSingle(OPERATIONS_TABLES.opportunity, "Opportunity", true) }
+        ],
+      },
+      production: {
+        label: "Production",
+        hint: "Roll for the Production zone.",
+        buildTiles: () => [
+          { label: "Area", handler: () => rollSingle(PRODUCTION_TABLES.area, "Area", true) },
+          { label: "Feature", handler: () => rollSingle(PRODUCTION_TABLES.feature, "Feature", true) },
+          { label: "Peril", handler: () => rollSingle(PRODUCTION_TABLES.peril, "Peril", true) },
+          { label: "Opportunity", handler: () => rollSingle(PRODUCTION_TABLES.opportunity, "Opportunity", true) }
+        ],
+      },
+      research: {
+        label: "Research",
+        hint: "Roll for the Research zone.",
+        buildTiles: () => [
+          { label: "Area", handler: () => rollSingle(RESEARCH_TABLES.area, "Area", true) },
+          { label: "Feature", handler: () => rollSingle(RESEARCH_TABLES.feature, "Feature", true) },
+          { label: "Peril", handler: () => rollSingle(RESEARCH_TABLES.peril, "Peril", true) },
+          { label: "Opportunity", handler: () => rollSingle(RESEARCH_TABLES.opportunity, "Opportunity", true) }
+        ],
+      },
+      type_by_location: {
+        label: "Type by Location",
+        hint: "Roll a derelict type by where it's found.",
+        buildTiles: () => [
+          { label: "Planetside", handler: () => rollSingle(TYPE_BY_LOCATION_TABLES.planetside, "Planetside", true) },
+          { label: "Orbital", handler: () => rollSingle(TYPE_BY_LOCATION_TABLES.orbital, "Orbital", true) },
+          { label: "Deep Space", handler: () => rollSingle(TYPE_BY_LOCATION_TABLES.deep_space, "Deep Space", true) }
+        ],
+      },
+      zones: {
+        label: "Zones",
+        hint: "Roll which zone you've found, by derelict type.",
+        buildTiles: () => [
+          { label: "Starship", handler: () => rollSingle(ZONES_TABLES.starship, "Starship", true) },
+          { label: "Settlement", handler: () => rollSingle(ZONES_TABLES.settlement, "Settlement", true) }
+        ],
+      },
+    };
+
+    function renderOracle(key) {
+      grid.innerHTML = '';
+      initOracleGrid(grid, ORACLES[key].buildTiles());
+      if (first) {
+        log.innerHTML = '<div class="empty">' + ORACLES[key].hint + '</div>';
+      }
+    }
+
+    const oracleTrigger = document.getElementById('oracleTrigger');
+    const oracleTriggerLabel = document.getElementById('oracleTriggerLabel');
+    const oracleMenu = document.getElementById('oracleMenu');
+
+    function openOracleMenu() {
+      oracleMenu.hidden = false;
+      oracleTrigger.setAttribute('aria-expanded', 'true');
+      document.addEventListener('click', handleOracleMenuOutsideClick, { capture: true });
+    }
+    function closeOracleMenu() {
+      oracleMenu.hidden = true;
+      oracleTrigger.setAttribute('aria-expanded', 'false');
+      document.removeEventListener('click', handleOracleMenuOutsideClick, { capture: true });
+    }
+    function handleOracleMenuOutsideClick(e) {
+      if (!oracleMenu.contains(e.target) && e.target !== oracleTrigger) closeOracleMenu();
+    }
+    oracleTrigger.addEventListener('click', () => {
+      if (oracleMenu.hidden) openOracleMenu(); else closeOracleMenu();
+    });
+
+    function selectOracle(key) {
+      oracleTriggerLabel.textContent = ORACLES[key].label;
+      oracleMenu.querySelectorAll('.oracle-menu-item').forEach((item) => {
+        item.setAttribute('aria-selected', item.dataset.key === key ? 'true' : 'false');
+      });
+      renderOracle(key);
+    }
+    oracleMenu.querySelectorAll('.oracle-menu-item').forEach((item) => {
+      item.addEventListener('click', () => {
+        selectOracle(item.dataset.key);
+        closeOracleMenu();
+      });
+    });
+
+    selectOracle('derelict');
+
+  </script>
+</body>
+</html>

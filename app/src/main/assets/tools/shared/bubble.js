@@ -53,10 +53,18 @@ function escapeHtml(s) {
 // properties from theme.css (defaults to the neutral violet).
 function appendCard(log, { label, gemVarName, detailText, total, isError }) {
   const card = document.createElement('div');
-  card.className = 'card enter' + (isError ? ' error' : '');
+  // Dice totals and short oracle words stay inline with their label/detail
+  // (the tight, compact case) and get the full-size treatment; a longer
+  // oracle result steps down in size and stacks the card vertically instead
+  // of squeezing the label/detail pip beside it - see .card.stacked and
+  // .card-total-md/-sm in theme.css.
+  const totalLen = total == null ? 0 : String(total).length;
+  const totalSizeClass = totalLen > 60 ? ' card-total-sm' : totalLen > 28 ? ' card-total-md' : '';
+  const stackedClass = totalLen > 28 ? ' stacked' : '';
+  card.className = 'card enter' + stackedClass + (isError ? ' error' : '');
   card.style.setProperty('--gem', 'var(' + (gemVarName || '--gem-d12') + ')');
   card.innerHTML =
-    (isError ? '' : `<span class="card-total">${total}</span>`) +
+    (isError ? '' : `<span class="card-total${totalSizeClass}">${total}</span>`) +
     `<span class="card-meta">` +
     (label ? `<span class="card-label">${escapeHtml(label)}</span>` : '') +
     (detailText != null

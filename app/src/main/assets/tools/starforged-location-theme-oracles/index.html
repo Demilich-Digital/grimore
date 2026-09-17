@@ -1,0 +1,276 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Starforged Location Theme Oracles</title>
+<script src="../shared/bubble.js"></script>
+<link rel="stylesheet" href="../shared/theme.css">
+<style>
+  #grid { grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); }
+  .oracle-picker {
+    position: relative;
+    flex: 0 0 auto;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .oracle-trigger {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: var(--card);
+    border: 1.5px solid var(--line);
+    border-radius: 999px;
+    padding: 10px 16px;
+    font-family: "Figtree", sans-serif;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .oracle-trigger:focus {
+    outline: none;
+    border-color: var(--gem-d12);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--gem-d12) 25%, transparent);
+  }
+  .oracle-chevron { width: 16px; height: 16px; color: var(--muted); flex: 0 0 auto; transition: transform 160ms ease; }
+  .oracle-trigger[aria-expanded="true"] .oracle-chevron { transform: rotate(180deg); }
+  .oracle-menu {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    top: 100%;
+    margin-top: 6px;
+    background: var(--card);
+    border: 1.5px solid var(--line);
+    border-radius: 14px;
+    padding: 6px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+    z-index: 5;
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+  .oracle-menu[hidden] { display: none; }
+  .oracle-menu-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-family: "Figtree", sans-serif;
+    font-weight: 600;
+    font-size: 0.88rem;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .oracle-menu-item[aria-selected="true"] { color: var(--gem-d12); }
+  .oracle-menu-item:hover, .oracle-menu-item:focus {
+    outline: none;
+    background: color-mix(in srgb, var(--gem-d12) 14%, var(--card));
+  }
+</style>
+</head>
+<body>
+  <noscript>
+    <div style="padding:16px;font-family:system-ui,sans-serif;">
+      <h2>Starforged Location Theme Oracles</h2>
+      <p>This tool needs JavaScript, which is currently disabled in this WebView.</p>
+      <p>That shouldn't happen - the app enables it itself. Please report this bug.</p>
+    </div>
+  </noscript>
+
+  <div class="oracle-picker">
+    <button id="oracleTrigger" class="oracle-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
+      <span id="oracleTriggerLabel">Theme Type</span>
+      <svg class="oracle-chevron" viewBox="0 0 24 24" fill="none"><polyline points="6 9 12 15 18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div id="oracleMenu" class="oracle-menu" role="listbox" aria-label="Oracle" hidden>
+      <button type="button" class="oracle-menu-item" data-key="type" role="option" aria-selected="true">Theme Type</button>
+      <button type="button" class="oracle-menu-item" data-key="chaotic" role="option" aria-selected="false">Chaotic</button>
+      <button type="button" class="oracle-menu-item" data-key="fortified" role="option" aria-selected="false">Fortified</button>
+      <button type="button" class="oracle-menu-item" data-key="haunted" role="option" aria-selected="false">Haunted</button>
+      <button type="button" class="oracle-menu-item" data-key="infested" role="option" aria-selected="false">Infested</button>
+      <button type="button" class="oracle-menu-item" data-key="inhabited" role="option" aria-selected="false">Inhabited</button>
+      <button type="button" class="oracle-menu-item" data-key="mechanical" role="option" aria-selected="false">Mechanical</button>
+      <button type="button" class="oracle-menu-item" data-key="ruined" role="option" aria-selected="false">Ruined</button>
+      <button type="button" class="oracle-menu-item" data-key="sacred" role="option" aria-selected="false">Sacred</button>
+    </div>
+  </div>
+  <div id="log"></div>
+  <div id="grid"></div>
+
+  <script src="../shared/oracle.js"></script>
+  <script>
+    // Ironsworn: Starforged oracles, by Shawn Tomkin - CC BY 4.0
+    // (https://creativecommons.org/licenses/by/4.0). Sourced from Datasworn
+    // (https://github.com/rsek/datasworn). Rows are {min, max, text}; roll
+    // the table's die and find the row whose range contains it.
+
+const TYPE_TABLES = {"type":{"name":"Theme Type","dice":"1d100","rows":[{"min":1,"max":15,"text":"Chaotic","text2":"Reality is corrupted or warped in this place."},{"min":16,"max":25,"text":"Fortified","text2":"Enemies defend this place against intruders."},{"min":26,"max":35,"text":"Haunted","text2":"Restless spirits are bound to this place."},{"min":36,"max":50,"text":"Infested","text2":"Foul creatures have overrun this place."},{"min":51,"max":60,"text":"Inhabited","text2":"People have built a community in this place."},{"min":61,"max":75,"text":"Mechanical","text2":"Machines and technology hold sway in this place."},{"min":76,"max":90,"text":"Ruined","text2":"Time, disaster, or war have ravaged this place."},{"min":91,"max":100,"text":"Sacred","text2":"Worshipers glorify strange powers in this place."}]}};
+const CHAOTIC_TABLES = {"feature":{"name":"Feature","dice":"1d100","rows":[{"min":1,"max":8,"text":"Alterations in the flow of time"},{"min":9,"max":16,"text":"Chaotic portal, focus, or conduit"},{"min":17,"max":24,"text":"Corrupted or warped architecture or terrain"},{"min":25,"max":32,"text":"Corrupted or warped environment or ecosystem"},{"min":33,"max":40,"text":"Corrupted or warped technology"},{"min":41,"max":48,"text":"Cryptic device harnesses or powers chaos"},{"min":49,"max":56,"text":"Distortions of gravity or other natural forces"},{"min":57,"max":64,"text":"Energy field or barrier"},{"min":65,"max":72,"text":"Glimpses of alternate realities"},{"min":73,"max":80,"text":"Lifeforms mutated or altered by chaos"},{"min":81,"max":88,"text":"Lifeforms spawned from chaos"},{"min":89,"max":96,"text":"Visions of your past or future"},{"min":97,"max":100,"text":"Descriptor + Focus"}]},"peril":{"name":"Peril","dice":"1d100","rows":[{"min":1,"max":9,"text":"Chaos makes its mark upon you"},{"min":10,"max":18,"text":"Chaos spreads or intensifies"},{"min":19,"max":27,"text":"Chaos tempts or lures you"},{"min":28,"max":36,"text":"Chaotic energies block the path or assail you"},{"min":37,"max":45,"text":"Disorienting changes in time or location"},{"min":46,"max":54,"text":"Dreadful scene of those who fell prey to chaos"},{"min":55,"max":63,"text":"Equipment is made unstable or dangerous"},{"min":64,"max":72,"text":"Foes harness or wield chaos"},{"min":73,"max":81,"text":"Hazardous environmental changes"},{"min":82,"max":90,"text":"Lifeforms made hostile by chaos"},{"min":91,"max":98,"text":"Action + Theme"},{"min":99,"max":100,"text":"Roll twice"}]},"opportunity":{"name":"Opportunity","dice":"1d100","rows":[{"min":1,"max":20,"text":"Chaos ebbs or withdraws for a time"},{"min":21,"max":40,"text":"Chaos empowers you with strange but useful abilities"},{"min":41,"max":60,"text":"Chaos manifests as comforting or inspiring visions"},{"min":61,"max":80,"text":"Chaotic changes hamper your foes"},{"min":81,"max":100,"text":"Insight into the source or nature of the chaos"}]}};
+const FORTIFIED_TABLES = {"feature":{"name":"Feature","dice":"1d100","rows":[{"min":1,"max":8,"text":"Captives or prisoners"},{"min":9,"max":16,"text":"Control area or terminal"},{"min":17,"max":24,"text":"Empty or inactive area"},{"min":25,"max":32,"text":"Enemy forces assembled for an event"},{"min":33,"max":40,"text":"Enemy forces off-duty or at leisure"},{"min":41,"max":48,"text":"Enemy forces on guard"},{"min":49,"max":56,"text":"Enemy forces on patrol"},{"min":57,"max":64,"text":"Enemy forces transporting supplies or equipment"},{"min":65,"max":72,"text":"Enemy leader makes an inspection"},{"min":73,"max":80,"text":"Prototype technology or equipment"},{"min":81,"max":88,"text":"Robotic assistant or watchful AI"},{"min":89,"max":96,"text":"Support personnel at work"},{"min":97,"max":100,"text":"Descriptor + Focus"}]},"peril":{"name":"Peril","dice":"1d100","rows":[{"min":1,"max":9,"text":"Alarm is triggered"},{"min":10,"max":18,"text":"Automated security or weapons target you"},{"min":19,"max":27,"text":"Checkpoint or path with restricted access"},{"min":28,"max":36,"text":"Enemies converge on this area"},{"min":37,"max":45,"text":"Enemies reveal new capabilities or technology"},{"min":46,"max":54,"text":"Enemies trick you or lure you into a trap"},{"min":55,"max":63,"text":"Powerful enemy appears"},{"min":64,"max":72,"text":"Problematic alliance or affiliation is revealed"},{"min":73,"max":81,"text":"Revealed schemes of an enemy leader create new urgency"},{"min":82,"max":90,"text":"Your plan is undone by an unexpected complication"},{"min":91,"max":98,"text":"Action + Theme"},{"min":99,"max":100,"text":"Roll twice"}]},"opportunity":{"name":"Opportunity","dice":"1d100","rows":[{"min":1,"max":20,"text":"Insight into the plans or methods of the enemy force"},{"min":21,"max":40,"text":"Opening to get the drop on an enemy"},{"min":41,"max":60,"text":"Opening to outmaneuver or escape enemies"},{"min":61,"max":80,"text":"Potential collaborator or informant reveals themselves"},{"min":81,"max":100,"text":"Access to useful equipment or weapons"}]}};
+const HAUNTED_TABLES = {"feature":{"name":"Feature","dice":"1d100","rows":[{"min":1,"max":8,"text":"Disembodied voices"},{"min":9,"max":16,"text":"Eerie cold"},{"min":17,"max":24,"text":"Foreboding omen or message"},{"min":25,"max":32,"text":"Ghostly visions of this place in another time"},{"min":33,"max":40,"text":"Glimpses of shadowy movement"},{"min":41,"max":48,"text":"Objects move of their own accord"},{"min":49,"max":56,"text":"Sensation of being watched"},{"min":57,"max":64,"text":"Signs of death or violence"},{"min":65,"max":72,"text":"Spectral sounds"},{"min":73,"max":80,"text":"Twisted or altered architecture or terrain"},{"min":81,"max":88,"text":"Unnatural blight, decay, or ruin"},{"min":89,"max":96,"text":"Unnatural mists or darkness"},{"min":97,"max":100,"text":"Descriptor + Focus"}]},"peril":{"name":"Peril","dice":"1d100","rows":[{"min":1,"max":9,"text":"Assailed by an angry or vengeful being"},{"min":10,"max":18,"text":"Beguiling illusions tempt you to linger or stay"},{"min":19,"max":27,"text":"Besieged by frightening sensations"},{"min":28,"max":36,"text":"Equipment is plagued by unexplainable malfunctions"},{"min":37,"max":45,"text":"Plunged into disorienting darkness or illusionary surroundings"},{"min":46,"max":54,"text":"Spectral manifestations of your fears"},{"min":55,"max":63,"text":"Spirits or undead reveal surprising abilities or motivations"},{"min":64,"max":72,"text":"Sudden, shocking reveal of a ghostly manifestation or undead form"},{"min":73,"max":81,"text":"Trickery leads you into danger"},{"min":82,"max":90,"text":"Visions reveal a horrifying aspect of this place"},{"min":91,"max":98,"text":"Action + Theme"},{"min":99,"max":100,"text":"Roll twice"}]},"opportunity":{"name":"Opportunity","dice":"1d100","rows":[{"min":1,"max":20,"text":"Encounter with a benign spirit or being"},{"min":21,"max":40,"text":"Helpful vision of past events"},{"min":41,"max":60,"text":"Message or clue offers insight into the nature of this haunting"},{"min":61,"max":80,"text":"Secret area or path is revealed"},{"min":81,"max":100,"text":"Useful or interesting artifact or device"}]}};
+const INFESTED_TABLES = {"feature":{"name":"Feature","dice":"1d100","rows":[{"min":1,"max":8,"text":"Corpse of an unfortunate victim"},{"min":9,"max":16,"text":"Eggs, cocoons, or nest"},{"min":17,"max":24,"text":"Environment corrupted by the infestation"},{"min":25,"max":32,"text":"Evidence of a lurking creature"},{"min":33,"max":40,"text":"Evidence of an ill-fated victim"},{"min":41,"max":48,"text":"Hoarded food"},{"min":49,"max":56,"text":"Indistinct movement or sounds"},{"min":57,"max":64,"text":"Lair of lesser creatures"},{"min":65,"max":72,"text":"Ravaged supplies or equipment"},{"min":73,"max":80,"text":"Remains of a creature or remnants of a previous form"},{"min":81,"max":88,"text":"Territorial markings"},{"min":89,"max":96,"text":"Trail or evidence of a creature's passage"},{"min":97,"max":100,"text":"Descriptor + Focus"}]},"peril":{"name":"Peril","dice":"1d100","rows":[{"min":1,"max":9,"text":"Creatures attack without warning"},{"min":10,"max":18,"text":"Creatures guided or controlled by a greater threat"},{"min":19,"max":27,"text":"Creatures reveal new aspects or abilities"},{"min":28,"max":36,"text":"Creatures reveal surprising cleverness"},{"min":37,"max":45,"text":"Creatures take or destroy something important"},{"min":46,"max":54,"text":"Discovery of a live but threatened victim"},{"min":55,"max":63,"text":"Hazardous architecture or terrain"},{"min":64,"max":72,"text":"Lured or driven into a trap or dead-end"},{"min":73,"max":81,"text":"Powerful or dominant creature reveals itself"},{"min":82,"max":90,"text":"Toxic or sickening environment"},{"min":91,"max":98,"text":"Action + Theme"},{"min":99,"max":100,"text":"Roll twice"}]},"opportunity":{"name":"Opportunity","dice":"1d100","rows":[{"min":1,"max":20,"text":"Clue to the nature or vulnerabilities of these creatures"},{"min":21,"max":40,"text":"Creatures turn on each other"},{"min":41,"max":60,"text":"Early warning of an attack or ambush"},{"min":61,"max":80,"text":"External event provides a helpful distraction"},{"min":81,"max":100,"text":"Helpful resource or equipment"}]}};
+const INHABITED_TABLES = {"feature":{"name":"Feature","dice":"1d100","rows":[{"min":1,"max":8,"text":"Conspicuous patrols or surveillance"},{"min":9,"max":16,"text":"Crews at work"},{"min":17,"max":24,"text":"Display or monument honors a notable cultural event"},{"min":25,"max":32,"text":"Emergency teams responding to an incident or crisis"},{"min":33,"max":40,"text":"Families gathering or children playing"},{"min":41,"max":48,"text":"Festival, celebration, or observance"},{"min":49,"max":56,"text":"Fight breaks out"},{"min":57,"max":64,"text":"Notable figure stands out from the crowd"},{"min":65,"max":72,"text":"Protest or strike"},{"min":73,"max":80,"text":"Unrepaired damage"},{"min":81,"max":88,"text":"Unusually empty or quiet area"},{"min":89,"max":96,"text":"Vendor or merchant hawking their wares"},{"min":97,"max":100,"text":"Descriptor + Focus"}]},"peril":{"name":"Peril","dice":"1d100","rows":[{"min":1,"max":9,"text":"Announcement or notification brings harrowing news"},{"min":10,"max":18,"text":"Arrival of a foe or rival"},{"min":19,"max":27,"text":"Blockade or security cordon cuts off needed access"},{"min":28,"max":36,"text":"Caught in the crossfire of a dispute"},{"min":37,"max":45,"text":"Disturbing evidence of exploitive conditions"},{"min":46,"max":54,"text":"Lured into danger"},{"min":55,"max":63,"text":"Signs of disease, infestation, or toxic environment"},{"min":64,"max":72,"text":"Signs of unrest or rebellion"},{"min":73,"max":81,"text":"Signs that you are being watched or followed"},{"min":82,"max":90,"text":"Unwanted attention from authority or enemies"},{"min":91,"max":98,"text":"Action + Theme"},{"min":99,"max":100,"text":"Roll twice"}]},"opportunity":{"name":"Opportunity","dice":"1d100","rows":[{"min":1,"max":20,"text":"Intriguing offer from an unexpected source"},{"min":21,"max":40,"text":"Lively festival or gathering place provides a chance to socialize"},{"min":41,"max":60,"text":"Local gossip proves interesting or helpful"},{"min":61,"max":80,"text":"Needed item, resource, or buyer is available"},{"min":81,"max":100,"text":"Old friend or connection resurfaces"}]}};
+const MECHANICAL_TABLES = {"feature":{"name":"Feature","dice":"1d100","rows":[{"min":1,"max":8,"text":"Control station or terminal"},{"min":9,"max":16,"text":"Device or technology with a mysterious function"},{"min":17,"max":24,"text":"Disassembled machinery or parts"},{"min":25,"max":32,"text":"Heavy machinery at work"},{"min":33,"max":40,"text":"Machine fabrication or repair"},{"min":41,"max":48,"text":"Machines emulating or fusing with biological life"},{"min":49,"max":56,"text":"Machines in stasis or powered down"},{"min":57,"max":64,"text":"Machines single-mindedly executing a function or program"},{"min":65,"max":72,"text":"Major project under construction"},{"min":73,"max":80,"text":"Mechanical environment in motion or transforming"},{"min":81,"max":88,"text":"Mechanical wreckage or destruction"},{"min":89,"max":96,"text":"Power source for the machines"},{"min":97,"max":100,"text":"Descriptor + Focus"}]},"peril":{"name":"Peril","dice":"1d100","rows":[{"min":1,"max":9,"text":"Alarm or warning is triggered"},{"min":10,"max":18,"text":"Automated weapon or trap is activated"},{"min":19,"max":27,"text":"Environment made unsuitable for life"},{"min":28,"max":36,"text":"Hostile machines on patrol"},{"min":37,"max":45,"text":"Machines transform to reveal new capabilities"},{"min":46,"max":54,"text":"Machines with corrupted or hacked programming"},{"min":55,"max":63,"text":"Malfunctioning machines or technology"},{"min":64,"max":72,"text":"Moving machinery creates a danger or obstacle"},{"min":73,"max":81,"text":"Under surveillance by a central machine intelligence"},{"min":82,"max":90,"text":"Volatile technology"},{"min":91,"max":98,"text":"Action + Theme"},{"min":99,"max":100,"text":"Roll twice"}]},"opportunity":{"name":"Opportunity","dice":"1d100","rows":[{"min":1,"max":20,"text":"Helpful device"},{"min":21,"max":40,"text":"Insight into the workings or purpose of the machines"},{"min":41,"max":60,"text":"Intelligent machine offers aid"},{"min":61,"max":80,"text":"Salvageable resource"},{"min":81,"max":100,"text":"Wondrous technology"}]}};
+const RUINED_TABLES = {"feature":{"name":"Feature","dice":"1d100","rows":[{"min":1,"max":8,"text":"Collapsed or broken structures or terrain"},{"min":9,"max":16,"text":"Device or artifact with residual power or function"},{"min":17,"max":24,"text":"Focal point or nexus of the destruction"},{"min":25,"max":32,"text":"Graves or corpses"},{"min":33,"max":40,"text":"Innermost or hidden spaces laid bare by the destruction"},{"min":41,"max":48,"text":"Message or recording from before the fall"},{"min":49,"max":56,"text":"Overgrown or entombed spaces"},{"min":57,"max":64,"text":"Rubble-strewn paths"},{"min":65,"max":72,"text":"Sad memento of a lost life"},{"min":73,"max":80,"text":"Sights or sounds of structural instability"},{"min":81,"max":88,"text":"Signs of looting or scavenging"},{"min":89,"max":96,"text":"Survivors or guardians dwell among the ruins"},{"min":97,"max":100,"text":"Descriptor + Focus"}]},"peril":{"name":"Peril","dice":"1d100","rows":[{"min":1,"max":9,"text":"Dreadful atmosphere of loss and destruction weighs upon you"},{"min":10,"max":18,"text":"Evidence of a horrible fate for others who passed this way"},{"min":19,"max":27,"text":"Hazardous atmosphere or environment"},{"min":28,"max":36,"text":"Hostile creature has staked out their territory"},{"min":37,"max":45,"text":"Imminent collapse or destruction"},{"min":46,"max":54,"text":"Lured into a trap or targeted by automated defenses"},{"min":55,"max":63,"text":"Source of the destruction persists or returns anew"},{"min":64,"max":72,"text":"Unearthed secrets best left buried"},{"min":73,"max":81,"text":"Unstable or broken path"},{"min":82,"max":90,"text":"Volatile device or artifact"},{"min":91,"max":98,"text":"Action + Theme"},{"min":99,"max":100,"text":"Roll twice"}]},"opportunity":{"name":"Opportunity","dice":"1d100","rows":[{"min":1,"max":20,"text":"Access to an untouched or preserved area"},{"min":21,"max":40,"text":"Insight into what brought this place to ruin"},{"min":41,"max":60,"text":"Interesting or useful device or artifact"},{"min":61,"max":80,"text":"Salvageable equipment or resources"},{"min":81,"max":100,"text":"Shortcut or passage through the destruction"}]}};
+const SACRED_TABLES = {"feature":{"name":"Feature","dice":"1d100","rows":[{"min":1,"max":8,"text":"Adherents performing worship or enacting rituals"},{"min":9,"max":16,"text":"Altar or temple"},{"min":17,"max":24,"text":"Dwellings for the faithful"},{"min":25,"max":32,"text":"Enigmatic symbols"},{"min":33,"max":40,"text":"Graves or remains of glorified disciples"},{"min":41,"max":48,"text":"Holy text or archives"},{"min":49,"max":56,"text":"Offerings or atonements"},{"min":57,"max":64,"text":"Pilgrims arriving to pay homage"},{"min":65,"max":72,"text":"Protected reliquary of an artifact or token"},{"min":73,"max":80,"text":"Religious art or idols"},{"min":81,"max":88,"text":"Subtle manifestations of mystical power or visions"},{"min":89,"max":96,"text":"Tokens or motifs representing the faith's domain"},{"min":97,"max":100,"text":"Descriptor + Focus"}]},"peril":{"name":"Peril","dice":"1d100","rows":[{"min":1,"max":9,"text":"An aspect of the faith beguiles you or lures you into danger"},{"min":10,"max":18,"text":"Dreadful aspects or powers of the faith are revealed"},{"min":19,"max":27,"text":"Embodiment of a god or power is given corrupted form or purpose"},{"min":28,"max":36,"text":"Guardians seek martyrdom in defense of this place"},{"min":37,"max":45,"text":"Leaders corrupt or exploit their followers to oppose you"},{"min":46,"max":54,"text":"Prophecies portend a dire threat"},{"min":55,"max":63,"text":"Protective ward or enigmatic puzzle blocks the way"},{"min":64,"max":72,"text":"Religious artifact evokes unnerving power"},{"min":73,"max":81,"text":"Unnatural corruption or decay fouls the environment"},{"min":82,"max":90,"text":"Zealots enact a ceremony to unlock forbidden powers"},{"min":91,"max":98,"text":"Action + Theme"},{"min":99,"max":100,"text":"Roll twice"}]},"opportunity":{"name":"Opportunity","dice":"1d100","rows":[{"min":1,"max":20,"text":"Access to a hidden or sealed area"},{"min":21,"max":40,"text":"Encounter with a helpful adherent or heretic"},{"min":41,"max":60,"text":"Insight into the nature or history of the faith"},{"min":61,"max":80,"text":"Insight into the schemes or methods of religious zealots"},{"min":81,"max":100,"text":"Interesting or valuable artifact or device"}]}};
+
+    const log = document.getElementById('log');
+    const grid = document.getElementById('grid');
+    let first = true;
+
+    function logCard(spec) {
+      if (first) { log.innerHTML = ''; first = false; }
+      appendCard(log, spec);
+    }
+
+    function rollSingle(table, label, withRoll) {
+      const { roll, text } = rollTable(table);
+      logCard({ total: text, detailText: withRoll ? 'rolled ' + roll : null });
+      reportToNative(label + ': ' + text, text.slice(0, 4));
+    }
+
+    // For a table_text2 table (a result plus a summary column) - shows the
+    // summary as the detail line instead of the roll number.
+    function rollSingle2(table, label) {
+      const { text, row } = rollTable(table);
+      logCard({ total: text, detailText: row.text2 || null });
+      reportToNative(label + ': ' + text, text.slice(0, 4));
+    }
+
+
+    const ORACLES = {
+      type: {
+        label: "Theme Type",
+        hint: "Roll to pick a location's theme, or browse a theme directly from the menu.",
+        buildTiles: () => [
+          { label: "Theme Type", handler: () => rollSingle2(TYPE_TABLES.type, "Theme Type") }
+        ],
+      },
+      chaotic: {
+        label: "Chaotic",
+        hint: "Roll for a Chaotic location.",
+        buildTiles: () => [
+          { label: "Feature", handler: () => rollSingle(CHAOTIC_TABLES.feature, "Feature", true) },
+          { label: "Peril", handler: () => rollSingle(CHAOTIC_TABLES.peril, "Peril", true) },
+          { label: "Opportunity", handler: () => rollSingle(CHAOTIC_TABLES.opportunity, "Opportunity", true) }
+        ],
+      },
+      fortified: {
+        label: "Fortified",
+        hint: "Roll for a Fortified location.",
+        buildTiles: () => [
+          { label: "Feature", handler: () => rollSingle(FORTIFIED_TABLES.feature, "Feature", true) },
+          { label: "Peril", handler: () => rollSingle(FORTIFIED_TABLES.peril, "Peril", true) },
+          { label: "Opportunity", handler: () => rollSingle(FORTIFIED_TABLES.opportunity, "Opportunity", true) }
+        ],
+      },
+      haunted: {
+        label: "Haunted",
+        hint: "Roll for a Haunted location.",
+        buildTiles: () => [
+          { label: "Feature", handler: () => rollSingle(HAUNTED_TABLES.feature, "Feature", true) },
+          { label: "Peril", handler: () => rollSingle(HAUNTED_TABLES.peril, "Peril", true) },
+          { label: "Opportunity", handler: () => rollSingle(HAUNTED_TABLES.opportunity, "Opportunity", true) }
+        ],
+      },
+      infested: {
+        label: "Infested",
+        hint: "Roll for a Infested location.",
+        buildTiles: () => [
+          { label: "Feature", handler: () => rollSingle(INFESTED_TABLES.feature, "Feature", true) },
+          { label: "Peril", handler: () => rollSingle(INFESTED_TABLES.peril, "Peril", true) },
+          { label: "Opportunity", handler: () => rollSingle(INFESTED_TABLES.opportunity, "Opportunity", true) }
+        ],
+      },
+      inhabited: {
+        label: "Inhabited",
+        hint: "Roll for a Inhabited location.",
+        buildTiles: () => [
+          { label: "Feature", handler: () => rollSingle(INHABITED_TABLES.feature, "Feature", true) },
+          { label: "Peril", handler: () => rollSingle(INHABITED_TABLES.peril, "Peril", true) },
+          { label: "Opportunity", handler: () => rollSingle(INHABITED_TABLES.opportunity, "Opportunity", true) }
+        ],
+      },
+      mechanical: {
+        label: "Mechanical",
+        hint: "Roll for a Mechanical location.",
+        buildTiles: () => [
+          { label: "Feature", handler: () => rollSingle(MECHANICAL_TABLES.feature, "Feature", true) },
+          { label: "Peril", handler: () => rollSingle(MECHANICAL_TABLES.peril, "Peril", true) },
+          { label: "Opportunity", handler: () => rollSingle(MECHANICAL_TABLES.opportunity, "Opportunity", true) }
+        ],
+      },
+      ruined: {
+        label: "Ruined",
+        hint: "Roll for a Ruined location.",
+        buildTiles: () => [
+          { label: "Feature", handler: () => rollSingle(RUINED_TABLES.feature, "Feature", true) },
+          { label: "Peril", handler: () => rollSingle(RUINED_TABLES.peril, "Peril", true) },
+          { label: "Opportunity", handler: () => rollSingle(RUINED_TABLES.opportunity, "Opportunity", true) }
+        ],
+      },
+      sacred: {
+        label: "Sacred",
+        hint: "Roll for a Sacred location.",
+        buildTiles: () => [
+          { label: "Feature", handler: () => rollSingle(SACRED_TABLES.feature, "Feature", true) },
+          { label: "Peril", handler: () => rollSingle(SACRED_TABLES.peril, "Peril", true) },
+          { label: "Opportunity", handler: () => rollSingle(SACRED_TABLES.opportunity, "Opportunity", true) }
+        ],
+      },
+    };
+
+    function renderOracle(key) {
+      grid.innerHTML = '';
+      initOracleGrid(grid, ORACLES[key].buildTiles());
+      if (first) {
+        log.innerHTML = '<div class="empty">' + ORACLES[key].hint + '</div>';
+      }
+    }
+
+    const oracleTrigger = document.getElementById('oracleTrigger');
+    const oracleTriggerLabel = document.getElementById('oracleTriggerLabel');
+    const oracleMenu = document.getElementById('oracleMenu');
+
+    function openOracleMenu() {
+      oracleMenu.hidden = false;
+      oracleTrigger.setAttribute('aria-expanded', 'true');
+      document.addEventListener('click', handleOracleMenuOutsideClick, { capture: true });
+    }
+    function closeOracleMenu() {
+      oracleMenu.hidden = true;
+      oracleTrigger.setAttribute('aria-expanded', 'false');
+      document.removeEventListener('click', handleOracleMenuOutsideClick, { capture: true });
+    }
+    function handleOracleMenuOutsideClick(e) {
+      if (!oracleMenu.contains(e.target) && e.target !== oracleTrigger) closeOracleMenu();
+    }
+    oracleTrigger.addEventListener('click', () => {
+      if (oracleMenu.hidden) openOracleMenu(); else closeOracleMenu();
+    });
+
+    function selectOracle(key) {
+      oracleTriggerLabel.textContent = ORACLES[key].label;
+      oracleMenu.querySelectorAll('.oracle-menu-item').forEach((item) => {
+        item.setAttribute('aria-selected', item.dataset.key === key ? 'true' : 'false');
+      });
+      renderOracle(key);
+    }
+    oracleMenu.querySelectorAll('.oracle-menu-item').forEach((item) => {
+      item.addEventListener('click', () => {
+        selectOracle(item.dataset.key);
+        closeOracleMenu();
+      });
+    });
+
+    selectOracle('type');
+
+  </script>
+</body>
+</html>
