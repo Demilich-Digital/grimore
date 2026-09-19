@@ -147,15 +147,18 @@
     // form (see renderBuilderTerms) so "1d13" and "d13" dedupe as the same
     // saved entry.
 
-    // Every tool's page shares one WebView origin (appassets.androidplatform.net),
-    // so localStorage is shared too - namespaced key to avoid colliding with any
-    // other tool that starts using storage later.
+    // Saved dice live in the app's DataStore via window.AndroidBridge
+    // (see GrimoireBridge.kt) rather than WebView localStorage - localStorage
+    // isn't guaranteed to survive Android reclaiming the overlay's process the
+    // way it would in a normal browser tab. Every tool's page shares one
+    // WebView origin (appassets.androidplatform.net) too, so a localStorage
+    // fallback still gets a namespaced key to avoid colliding with any other
+    // tool that starts using it.
     const STORAGE_KEY = 'bubbletools.customDice.dice';
 
-    function loadCustomDice() {
+    function parseDiceList(raw) {
+      if (!raw) return [];
       try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return [];
         const parsed = JSON.parse(raw);
         if (!Array.isArray(parsed)) return [];
         return parsed.filter((n) => typeof n === 'string' && parseBuilderTerms(n) !== null);
@@ -163,9 +166,25 @@
         return [];
       }
     }
-    function saveCustomDice() {
+
+    function loadCustomDice() {
+      if (window.AndroidBridge) {
+        return parseDiceList(window.AndroidBridge.getDiceState());
+      }
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(customDice));
+        return parseDiceList(localStorage.getItem(STORAGE_KEY));
+      } catch (e) {
+        return [];
+      }
+    }
+    function saveCustomDice() {
+      const json = JSON.stringify(customDice);
+      if (window.AndroidBridge) {
+        window.AndroidBridge.saveDiceState(json);
+        return;
+      }
+      try {
+        localStorage.setItem(STORAGE_KEY, json);
       } catch (e) {
         // Private/incognito-style WebView storage, or storage full - the dice
         // list still works for this session, it just won't survive a restart.
