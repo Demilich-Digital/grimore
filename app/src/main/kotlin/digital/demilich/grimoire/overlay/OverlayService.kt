@@ -1311,11 +1311,22 @@ class OverlayService : Service() {
                         overflow = TextOverflow.Ellipsis,
                     )
                     if (tool.tags.isNotEmpty()) {
+                        // Every tag still powers search and the filter chips
+                        // above regardless of how many render here - this cap
+                        // is purely about row height. Left uncapped, a tool
+                        // with 6-9 tags (now the norm - Custom Dice and Dice
+                        // Bot's 2-3 are the outliers from before this list
+                        // grew to two dozen+ tools) wraps to 2-3 extra lines
+                        // per row, and that compounds across the whole list
+                        // into a lot of scrolling to reach anything further
+                        // down - easy to mistake for tools missing entirely.
+                        val visibleTagLimit = 4
+                        val overflowCount = tool.tags.size - visibleTagLimit
                         FlowRow(
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                             modifier = Modifier.padding(top = 4.dp),
                         ) {
-                            tool.tags.forEach { tag ->
+                            tool.tags.take(visibleTagLimit).forEach { tag ->
                                 Surface(
                                     shape = RoundedCornerShape(6.dp),
                                     color = MaterialTheme.colorScheme.secondaryContainer,
@@ -1323,6 +1334,19 @@ class OverlayService : Service() {
                                     Text(
                                         tag,
                                         style = MaterialTheme.typography.labelSmall,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    )
+                                }
+                            }
+                            if (overflowCount > 0) {
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant,
+                                ) {
+                                    Text(
+                                        "+$overflowCount",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                     )
                                 }
