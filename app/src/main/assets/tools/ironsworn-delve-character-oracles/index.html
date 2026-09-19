@@ -1,0 +1,65 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ironsworn Delve Character Oracles</title>
+<script src="../shared/bubble.js"></script>
+<link rel="stylesheet" href="../shared/theme.css">
+<style>
+  #grid { grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); }
+</style>
+</head>
+<body>
+  <noscript>
+    <div style="padding:16px;font-family:system-ui,sans-serif;">
+      <h2>Ironsworn Delve Character Oracles</h2>
+      <p>This tool needs JavaScript, which is currently disabled in this WebView.</p>
+      <p>That shouldn't happen - the app enables it itself. Please report this bug.</p>
+    </div>
+  </noscript>
+
+  <div id="log"></div>
+  <div id="grid"></div>
+
+  <script src="../shared/oracle.js"></script>
+  <script>
+    // Ironsworn: Delve oracles, by Shawn Tomkin - CC BY 4.0
+    // (https://creativecommons.org/licenses/by/4.0). Sourced from Datasworn
+    // (https://github.com/rsek/datasworn). Rows are {min, max, text}; roll
+    // 1d100 and find the row whose range contains it. Character/Disposition
+    // sketch a denizen you meet; Method/Target describe a beat within an
+    // ongoing fight.
+    const CHARACTER_TABLES = {"activity":{"name":"Activity","dice":"1d100","rows":[{"min":1,"max":2,"text":"Guarding"},{"min":3,"max":4,"text":"Preserving"},{"min":5,"max":6,"text":"Constructing"},{"min":7,"max":8,"text":"Mending"},{"min":9,"max":10,"text":"Assisting"},{"min":11,"max":12,"text":"Securing"},{"min":13,"max":14,"text":"Learning"},{"min":15,"max":16,"text":"Sneaking"},{"min":17,"max":18,"text":"Fleeing"},{"min":19,"max":20,"text":"Sacrificing"},{"min":21,"max":22,"text":"Creating"},{"min":23,"max":24,"text":"Luring"},{"min":25,"max":26,"text":"Hunting"},{"min":27,"max":28,"text":"Seizing"},{"min":29,"max":30,"text":"Bargaining"},{"min":31,"max":32,"text":"Mimicking"},{"min":33,"max":34,"text":"Tricking"},{"min":35,"max":36,"text":"Tracking"},{"min":37,"max":38,"text":"Escorting"},{"min":39,"max":40,"text":"Hiding"},{"min":41,"max":42,"text":"Raiding"},{"min":43,"max":44,"text":"Socializing"},{"min":45,"max":46,"text":"Exploring"},{"min":47,"max":48,"text":"Journeying"},{"min":49,"max":50,"text":"Supporting"},{"min":51,"max":52,"text":"Avoiding"},{"min":53,"max":54,"text":"Disabling"},{"min":55,"max":56,"text":"Leading"},{"min":57,"max":58,"text":"Assaulting"},{"min":59,"max":60,"text":"Ensnaring"},{"min":61,"max":62,"text":"Defending"},{"min":63,"max":64,"text":"Recovering"},{"min":65,"max":66,"text":"Patrolling"},{"min":67,"max":68,"text":"Resting"},{"min":69,"max":70,"text":"Distracting"},{"min":71,"max":72,"text":"Leaving"},{"min":73,"max":74,"text":"Fighting"},{"min":75,"max":76,"text":"Ambushing"},{"min":77,"max":78,"text":"Controlling"},{"min":79,"max":80,"text":"Observing"},{"min":81,"max":82,"text":"Gathering"},{"min":83,"max":84,"text":"Suffering"},{"min":85,"max":86,"text":"Threatening"},{"min":87,"max":88,"text":"Searching"},{"min":89,"max":90,"text":"Destroying"},{"min":91,"max":92,"text":"Restoring"},{"min":93,"max":94,"text":"Consuming"},{"min":95,"max":96,"text":"Removing"},{"min":97,"max":98,"text":"Inspecting"},{"min":99,"max":100,"text":"Summoning"}]},"disposition":{"name":"Disposition","dice":"1d100","rows":[{"min":1,"max":6,"text":"Helpful"},{"min":7,"max":13,"text":"Friendly"},{"min":14,"max":20,"text":"Cooperative"},{"min":21,"max":28,"text":"Curious"},{"min":29,"max":36,"text":"Indifferent"},{"min":37,"max":47,"text":"Suspicious"},{"min":48,"max":57,"text":"Wanting"},{"min":58,"max":67,"text":"Desperate"},{"min":68,"max":76,"text":"Demanding"},{"min":77,"max":85,"text":"Unfriendly"},{"min":86,"max":93,"text":"Threatening"},{"min":94,"max":100,"text":"Hostile"}]},"combat_method":{"name":"Combat Event: Method","dice":"1d100","rows":[{"min":1,"max":2,"text":"Defy"},{"min":3,"max":4,"text":"Break"},{"min":5,"max":6,"text":"Trick"},{"min":7,"max":8,"text":"Evade"},{"min":9,"max":10,"text":"Protect"},{"min":11,"max":12,"text":"Overwhelm"},{"min":13,"max":14,"text":"Persevere"},{"min":15,"max":16,"text":"Assist"},{"min":17,"max":18,"text":"Await"},{"min":19,"max":20,"text":"Abort"},{"min":21,"max":22,"text":"Block"},{"min":23,"max":24,"text":"Collide"},{"min":25,"max":26,"text":"Focus"},{"min":27,"max":28,"text":"Advance"},{"min":29,"max":30,"text":"Breach"},{"min":31,"max":32,"text":"Endure"},{"min":33,"max":34,"text":"Assault"},{"min":35,"max":36,"text":"Charge"},{"min":37,"max":38,"text":"Escalate"},{"min":39,"max":40,"text":"Sunder"},{"min":41,"max":42,"text":"Shatter"},{"min":43,"max":44,"text":"Aim"},{"min":45,"max":46,"text":"Stagger"},{"min":47,"max":48,"text":"Counter"},{"min":49,"max":50,"text":"Seize"},{"min":51,"max":52,"text":"Impact"},{"min":53,"max":54,"text":"Entangle"},{"min":55,"max":56,"text":"Hold"},{"min":57,"max":58,"text":"Deflect"},{"min":59,"max":60,"text":"Drop"},{"min":61,"max":62,"text":"Lose"},{"min":63,"max":64,"text":"Sweep"},{"min":65,"max":66,"text":"Secure"},{"min":67,"max":68,"text":"Cover"},{"min":69,"max":70,"text":"Withdraw"},{"min":71,"max":72,"text":"Clash"},{"min":73,"max":74,"text":"Amplify"},{"min":75,"max":76,"text":"Batter"},{"min":77,"max":78,"text":"Feint"},{"min":79,"max":80,"text":"Shove"},{"min":81,"max":82,"text":"Embed"},{"min":83,"max":84,"text":"Affect"},{"min":85,"max":86,"text":"Probe"},{"min":87,"max":88,"text":"Force"},{"min":89,"max":90,"text":"Intensify"},{"min":91,"max":92,"text":"Distract"},{"min":93,"max":94,"text":"Challenge"},{"min":95,"max":96,"text":"Brawl"},{"min":97,"max":98,"text":"Coordinate"},{"min":99,"max":100,"text":"Overrun"}]},"combat_target":{"name":"Combat Event: Target","dice":"1d100","rows":[{"min":1,"max":2,"text":"Control"},{"min":3,"max":4,"text":"Defense"},{"min":5,"max":6,"text":"Limbs"},{"min":7,"max":8,"text":"Focus"},{"min":9,"max":10,"text":"Advantage"},{"min":11,"max":12,"text":"Range"},{"min":13,"max":14,"text":"Stress"},{"min":15,"max":16,"text":"Sense"},{"min":17,"max":18,"text":"Weakness"},{"min":19,"max":20,"text":"Opening"},{"min":21,"max":22,"text":"Fear"},{"min":23,"max":24,"text":"Instinct"},{"min":25,"max":26,"text":"Footing"},{"min":27,"max":28,"text":"Maneuver"},{"min":29,"max":30,"text":"Reach"},{"min":31,"max":32,"text":"Harm"},{"min":33,"max":34,"text":"Finesse"},{"min":35,"max":36,"text":"Weapon"},{"min":37,"max":38,"text":"Environment"},{"min":39,"max":40,"text":"Technique"},{"min":41,"max":42,"text":"Surprise"},{"min":43,"max":44,"text":"Pride"},{"min":45,"max":46,"text":"Wound"},{"min":47,"max":48,"text":"Precision"},{"min":49,"max":50,"text":"Ally"},{"min":51,"max":52,"text":"Ground"},{"min":53,"max":54,"text":"Courage"},{"min":55,"max":56,"text":"Companion"},{"min":57,"max":58,"text":"Object"},{"min":59,"max":60,"text":"Momentum"},{"min":61,"max":62,"text":"Speed"},{"min":63,"max":64,"text":"Strength"},{"min":65,"max":66,"text":"Supply"},{"min":67,"max":68,"text":"Terrain"},{"min":69,"max":70,"text":"Armor"},{"min":71,"max":72,"text":"Skill"},{"min":73,"max":74,"text":"Body"},{"min":75,"max":76,"text":"Protection"},{"min":77,"max":78,"text":"Resolve"},{"min":79,"max":80,"text":"Ferocity"},{"min":81,"max":82,"text":"Shield"},{"min":83,"max":84,"text":"Ammo"},{"min":85,"max":86,"text":"Anger"},{"min":87,"max":88,"text":"Opportunity"},{"min":89,"max":90,"text":"Balance"},{"min":91,"max":92,"text":"Position"},{"min":93,"max":94,"text":"Barrier"},{"min":95,"max":96,"text":"Strategy"},{"min":97,"max":98,"text":"Grasp"},{"min":99,"max":100,"text":"Power"}]}};
+
+    const log = document.getElementById('log');
+    const grid = document.getElementById('grid');
+    let first = true;
+
+    function logCard(spec) {
+      if (first) { log.innerHTML = ''; first = false; }
+      appendCard(log, spec);
+    }
+
+    function rollSingle(table, label, withRoll) {
+      const { roll, text } = rollTable(table);
+      logCard({ total: text, detailText: withRoll ? 'rolled ' + roll : null });
+      reportToNative(label + ': ' + text, text.slice(0, 4));
+    }
+
+    const ORACLE = {
+      label: 'Character Oracles',
+      hint: 'Roll to sketch a denizen, or a beat within a fight.',
+      buildTiles: () => [
+        { label: 'Activity', handler: () => rollSingle(CHARACTER_TABLES.activity, 'Activity', true) },
+        { label: 'Disposition', handler: () => rollSingle(CHARACTER_TABLES.disposition, 'Disposition', true) },
+        { label: 'Combat: Method', handler: () => rollSingle(CHARACTER_TABLES.combat_method, 'Combat Method', true) },
+        { label: 'Combat: Target', handler: () => rollSingle(CHARACTER_TABLES.combat_target, 'Combat Target', true) },
+      ],
+    };
+
+    log.innerHTML = '<div class="empty">' + ORACLE.hint + '</div>';
+    initOracleGrid(grid, ORACLE.buildTiles());
+  </script>
+</body>
+</html>

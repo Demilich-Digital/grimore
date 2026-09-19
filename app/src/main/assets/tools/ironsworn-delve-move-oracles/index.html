@@ -1,0 +1,68 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ironsworn Delve Move Oracles</title>
+<script src="../shared/bubble.js"></script>
+<link rel="stylesheet" href="../shared/theme.css">
+<style>
+  #grid { grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); }
+</style>
+</head>
+<body>
+  <noscript>
+    <div style="padding:16px;font-family:system-ui,sans-serif;">
+      <h2>Ironsworn Delve Move Oracles</h2>
+      <p>This tool needs JavaScript, which is currently disabled in this WebView.</p>
+      <p>That shouldn't happen - the app enables it itself. Please report this bug.</p>
+    </div>
+  </noscript>
+
+  <div id="log"></div>
+  <div id="grid"></div>
+
+  <script src="../shared/oracle.js"></script>
+  <script>
+    // Ironsworn: Delve oracles, by Shawn Tomkin - CC BY 4.0
+    // (https://creativecommons.org/licenses/by/4.0). Sourced from Datasworn
+    // (https://github.com/rsek/datasworn). Rows are {min, max, text}; roll
+    // the table's die and find the row whose range contains it. Edge/Shadow/
+    // Wits resolve a Delve the Depths roll for that stat without needing a
+    // live move check; the rest are the tables that move (and the site
+    // generator tool) sends you to.
+    const MOVE_TABLES = {"edge":{"name":"Delve the Depths: Edge","dice":"1d100","rows":[{"min":1,"max":45,"text":"Mark progress and Reveal a Danger."},{"min":46,"max":65,"text":"Mark progress."},{"min":66,"max":75,"text":"Choose one: Mark progress or Find an Opportunity."},{"min":76,"max":80,"text":"Take both: Mark progress and Find an Opportunity."},{"min":81,"max":100,"text":"Mark progress twice and Reveal a Danger."}]},"shadow":{"name":"Delve the Depths: Shadow","dice":"1d100","rows":[{"min":1,"max":30,"text":"Mark progress and Reveal a Danger."},{"min":31,"max":65,"text":"Mark progress."},{"min":66,"max":90,"text":"Choose one: Mark progress or Find an Opportunity."},{"min":91,"max":99,"text":"Take both: Mark progress and Find an Opportunity."},{"min":100,"max":100,"text":"Mark progress twice and Reveal a Danger."}]},"wits":{"name":"Delve the Depths: Wits","dice":"1d100","rows":[{"min":1,"max":40,"text":"Mark progress and Reveal a Danger."},{"min":41,"max":55,"text":"Mark progress."},{"min":56,"max":80,"text":"Choose one: Mark progress or Find an Opportunity."},{"min":81,"max":99,"text":"Take both: Mark progress and Find an Opportunity."},{"min":100,"max":100,"text":"Mark progress twice and Reveal a Danger."}]},"find_opportunity":{"name":"Find an Opportunity","dice":"1d100","rows":[{"min":1,"max":25,"text":"The terrain favors you, or you find a hidden path."},{"min":26,"max":45,"text":"An aspect of the history or nature of this place is revealed."},{"min":46,"max":57,"text":"You locate a secure area."},{"min":58,"max":68,"text":"A clue offers insight or direction."},{"min":69,"max":78,"text":"You get the drop on a denizen."},{"min":79,"max":86,"text":"This area provides an opportunity to scavenge, forage, or hunt."},{"min":87,"max":90,"text":"You locate an interesting or helpful object."},{"min":91,"max":94,"text":"You are alerted to a potential threat."},{"min":95,"max":98,"text":"You encounter a denizen who might support you."},{"min":99,"max":100,"text":"You encounter a denizen in need of help."}]},"advance_threat":{"name":"Advance a Threat","dice":"1d100","rows":[{"min":1,"max":30,"text":"The threat readies its next step, or a new danger looms. If you are in a position to prevent this development, you may attempt to do so. If you succeed, Reach a Milestone. Otherwise, mark menace."},{"min":31,"max":70,"text":"The threat works subtly to advance toward its goal, or the danger escalates. Mark menace."},{"min":71,"max":100,"text":"The threat makes a dramatic and immediate move, or a major event reveals new complications. Mark menace twice."}]},"reveal_danger_alt":{"name":"Reveal a Danger (alternate version)","dice":"1d100","rows":[{"min":1,"max":22,"text":"You encounter a hostile denizen."},{"min":23,"max":42,"text":"You face an environmental or architectural hazard."},{"min":43,"max":58,"text":"A discovery undermines or complicates your quest."},{"min":59,"max":64,"text":"You confront a harrowing situation or sensation."},{"min":65,"max":70,"text":"You face the consequences of an earlier choice or approach."},{"min":71,"max":76,"text":"Your way is blocked or trapped."},{"min":77,"max":82,"text":"A resource is diminished, broken, or lost."},{"min":83,"max":88,"text":"You face a perplexing mystery or tough choice."},{"min":89,"max":94,"text":"You lose your way or are delayed."},{"min":95,"max":100,"text":"Roll twice more on this table. Both results occur. If they are the same result, make it worse."}]}};
+
+    const log = document.getElementById('log');
+    const grid = document.getElementById('grid');
+    let first = true;
+
+    function logCard(spec) {
+      if (first) { log.innerHTML = ''; first = false; }
+      appendCard(log, spec);
+    }
+
+    function rollSingle(table, label, withRoll) {
+      const { roll, text } = rollTable(table);
+      logCard({ total: text, detailText: withRoll ? 'rolled ' + roll : null });
+      reportToNative(label + ': ' + text, text.slice(0, 4));
+    }
+
+    const ORACLE = {
+      label: 'Move Oracles',
+      hint: 'Roll when a move calls for one of these tables.',
+      buildTiles: () => [
+        { label: 'Delve the Depths (Edge)', handler: () => rollSingle(MOVE_TABLES.edge, 'Delve the Depths (Edge)', true) },
+        { label: 'Delve the Depths (Shadow)', handler: () => rollSingle(MOVE_TABLES.shadow, 'Delve the Depths (Shadow)', true) },
+        { label: 'Delve the Depths (Wits)', handler: () => rollSingle(MOVE_TABLES.wits, 'Delve the Depths (Wits)', true) },
+        { label: 'Find an Opportunity', handler: () => rollSingle(MOVE_TABLES.find_opportunity, 'Find an Opportunity', true) },
+        { label: 'Advance a Threat', handler: () => rollSingle(MOVE_TABLES.advance_threat, 'Advance a Threat', true) },
+        { label: 'Reveal a Danger (Alt)', handler: () => rollSingle(MOVE_TABLES.reveal_danger_alt, 'Reveal a Danger (Alt)', true) },
+      ],
+    };
+
+    log.innerHTML = '<div class="empty">' + ORACLE.hint + '</div>';
+    initOracleGrid(grid, ORACLE.buildTiles());
+  </script>
+</body>
+</html>
