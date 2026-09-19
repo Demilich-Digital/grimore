@@ -76,6 +76,15 @@ enum class GrimoireTool(
         iconRes = R.drawable.ic_custom_dice,
         credit = "Demilich Digital",
     ),
+    ACTION_ROLL(
+        id = "action-roll",
+        assetPath = "tools/action-roll/index.html",
+        displayName = "Action Roll",
+        description = "Pick Ironsworn (1d6 + modifier vs two d10 challenge dice, with match detection) or Apocalypse World (2d6 + modifier, 10+/7-9/6-), tap your modifier (-2 to +4), and roll.",
+        tags = listOf("games", "tabletop", "random", "ironsworn", "apocalypse-world", "pbta", "moves"),
+        iconRes = R.drawable.ic_action_roll,
+        credit = "Demilich Digital",
+    ),
     STARFORGED_CORE_ORACLES(
         id = "starforged-core-oracles",
         assetPath = "tools/starforged-core-oracles/index.html",
