@@ -1,0 +1,317 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Action Roll</title>
+<script src="../shared/bubble.js"></script>
+<link rel="stylesheet" href="../shared/theme.css">
+<style>
+  /* Outcome colors, scoped here rather than promoted to theme.css - no other
+     tool needs a strong/weak/miss vocabulary. Miss reuses --error rather than
+     defining a fourth color, since "miss" and "error" read the same way (a
+     card-left accent in the same red both themes already use for a bad
+     outcome) even though they're semantically different things. */
+  :root {
+    --hit-strong: #1fae6e;
+    --hit-weak: #e0a020;
+    --hit-miss: var(--error);
+  }
+
+  /* Game picker: same custom pill trigger + dropdown as the Ironsworn Oracles
+     tool's oracle picker, and for the same reason - a native <select>'s popup
+     positions itself using page layout coordinates, which land far from the
+     trigger once this panel is a draggable, freely-positioned overlay window.
+     See that tool's CSS comment for the full rationale. Lives above #log for
+     the same reason too: the menu opens downward and needs panel height below
+     it to open into. */
+  .game-picker {
+    position: relative;
+    flex: 0 0 auto;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .game-trigger {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: var(--card);
+    border: 1.5px solid var(--line);
+    border-radius: 999px;
+    padding: 10px 16px;
+    font-family: "Figtree", sans-serif;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .game-trigger:focus {
+    outline: none;
+    border-color: var(--gem-d12);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--gem-d12) 25%, transparent);
+  }
+  .game-chevron { width: 16px; height: 16px; color: var(--muted); flex: 0 0 auto; transition: transform 160ms ease; }
+  .game-trigger[aria-expanded="true"] .game-chevron { transform: rotate(180deg); }
+  .game-menu {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    top: 100%;
+    margin-top: 6px;
+    background: var(--card);
+    border: 1.5px solid var(--line);
+    border-radius: 14px;
+    padding: 6px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+    z-index: 5;
+  }
+  .game-menu[hidden] { display: none; }
+  .game-menu-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-family: "Figtree", sans-serif;
+    font-weight: 600;
+    font-size: 0.88rem;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .game-menu-item[aria-selected="true"] { color: var(--gem-d12); }
+  .game-menu-item:hover, .game-menu-item:focus {
+    outline: none;
+    background: color-mix(in srgb, var(--gem-d12) 14%, var(--card));
+  }
+
+  /* Modifier quick-select: reuses the shared #grid tile look, just text tiles
+     (no die icon) since what's being picked is a number, not a die - stats in
+     both games only ever run -2 to +4, so every value fits on screen at once
+     and a tap beats an increment/decrement dance. */
+  #grid { grid-template-columns: repeat(7, 1fr); }
+  button.tile.mod-tile {
+    flex-direction: row;
+    justify-content: center;
+    padding: 12px 2px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.95rem;
+  }
+  button.tile.mod-tile.selected {
+    background: var(--gem);
+    border-color: var(--gem);
+    color: #ffffff;
+  }
+</style>
+</head>
+<body>
+  <noscript>
+    <div style="padding:16px;font-family:system-ui,sans-serif;">
+      <h2>Action Roll</h2>
+      <p>This tool needs JavaScript, which is currently disabled in this WebView.</p>
+      <p>That shouldn't happen - the app enables it itself. Please report this bug.</p>
+    </div>
+  </noscript>
+
+  <div class="game-picker">
+    <button id="gameTrigger" class="game-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
+      <span id="gameTriggerLabel">Ironsworn</span>
+      <svg class="game-chevron" viewBox="0 0 24 24" fill="none"><polyline points="6 9 12 15 18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div id="gameMenu" class="game-menu" role="listbox" aria-label="Game" hidden>
+      <button type="button" class="game-menu-item" data-key="ironsworn" role="option" aria-selected="true">Ironsworn</button>
+      <button type="button" class="game-menu-item" data-key="apocalypseWorld" role="option" aria-selected="false">Apocalypse World</button>
+    </div>
+  </div>
+
+  <div id="log"></div>
+
+  <button id="rollBtn" class="action-btn" type="button" aria-label="Roll">
+    <svg viewBox="0 0 24 24" fill="none"><polygon points="12,3 20,7.5 20,16.5 12,21 4,16.5 4,7.5" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+    <span>Roll Action</span>
+  </button>
+  <div id="grid"></div>
+
+  <script>
+    // Two genuinely different dice engines behind one modifier picker - the
+    // game picker here actually changes the math, unlike the Ironsworn/
+    // Starforged split this tool started with (those two resolve identically,
+    // so there was nothing for a picker to switch).
+    //
+    // Ironsworn: 1d6 (action die) + modifier vs two d10 challenge dice.
+    // Strong hit beats both, weak hit beats one, miss beats neither; equal
+    // challenge dice are a match.
+    //
+    // Apocalypse World: 2d6 + modifier against fixed thresholds - 10+ is a
+    // strong hit, 7-9 a weak hit, 6 or under a miss. No challenge dice, so no
+    // match - that concept doesn't exist in the AW engine.
+    const GAMES = {
+      ironsworn: { label: 'Ironsworn', hint: 'Pick your modifier, then roll: 1d6 + modifier vs two d10 challenge dice.' },
+      apocalypseWorld: { label: 'Apocalypse World', hint: 'Pick your modifier, then roll: 2d6 + modifier - 10+ strong hit, 7-9 weak hit, 6- miss.' },
+    };
+    const STORAGE_GAME = 'bubbletools.actionRoll.game';
+    const STORAGE_MODIFIER = 'bubbletools.actionRoll.modifier';
+    const MODIFIER_VALUES = [-2, -1, 0, 1, 2, 3, 4];
+    const MODIFIER_DEFAULT = 0;
+
+    function loadString(key, fallback, allowed) {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw !== null && allowed.includes(raw) ? raw : fallback;
+      } catch (e) {
+        return fallback;
+      }
+    }
+    function loadNumber(key, fallback, allowedValues) {
+      try {
+        const raw = localStorage.getItem(key);
+        if (raw === null) return fallback;
+        const n = parseInt(raw, 10);
+        return allowedValues.includes(n) ? n : fallback;
+      } catch (e) {
+        return fallback;
+      }
+    }
+    function saveValue(key, value) {
+      try { localStorage.setItem(key, String(value)); } catch (e) { /* private/incognito storage - session-only */ }
+    }
+
+    let game = loadString(STORAGE_GAME, 'ironsworn', Object.keys(GAMES));
+    let modifier = loadNumber(STORAGE_MODIFIER, MODIFIER_DEFAULT, MODIFIER_VALUES);
+
+    const log = document.getElementById('log');
+    let first = true;
+    function logCard(spec) {
+      if (first) { log.innerHTML = ''; first = false; }
+      return appendCard(log, spec);
+    }
+
+    function signed(n) { return (n >= 0 ? '+' : '') + n; }
+
+    // ---- game picker: trigger + menu ----
+
+    const gameTrigger = document.getElementById('gameTrigger');
+    const gameTriggerLabel = document.getElementById('gameTriggerLabel');
+    const gameMenu = document.getElementById('gameMenu');
+
+    function openGameMenu() {
+      gameMenu.hidden = false;
+      gameTrigger.setAttribute('aria-expanded', 'true');
+      document.addEventListener('click', handleGameMenuOutsideClick, { capture: true });
+    }
+    function closeGameMenu() {
+      gameMenu.hidden = true;
+      gameTrigger.setAttribute('aria-expanded', 'false');
+      document.removeEventListener('click', handleGameMenuOutsideClick, { capture: true });
+    }
+    function handleGameMenuOutsideClick(e) {
+      if (!gameMenu.contains(e.target) && e.target !== gameTrigger) closeGameMenu();
+    }
+    gameTrigger.addEventListener('click', () => {
+      if (gameMenu.hidden) openGameMenu(); else closeGameMenu();
+    });
+
+    function selectGame(key) {
+      game = key;
+      saveValue(STORAGE_GAME, game);
+      gameTriggerLabel.textContent = GAMES[key].label;
+      gameMenu.querySelectorAll('.game-menu-item').forEach((item) => {
+        item.setAttribute('aria-selected', item.dataset.key === key ? 'true' : 'false');
+      });
+      // Only the pre-roll hint depends on which system is picked - once
+      // there's a real result in the log, switching games mid-session (to
+      // compare a roll, say) shouldn't wipe it.
+      if (first) log.innerHTML = '<div class="empty">' + GAMES[key].hint + '</div>';
+    }
+    gameMenu.querySelectorAll('.game-menu-item').forEach((item) => {
+      item.addEventListener('click', () => {
+        selectGame(item.dataset.key);
+        closeGameMenu();
+      });
+    });
+    selectGame(game);
+
+    // ---- modifier quick-select ----
+
+    const grid = document.getElementById('grid');
+    function renderModifierGrid() {
+      grid.innerHTML = '';
+      MODIFIER_VALUES.forEach((value) => {
+        const tile = document.createElement('button');
+        tile.type = 'button';
+        tile.className = 'tile mod-tile' + (value === modifier ? ' selected' : '');
+        tile.style.setProperty('--gem', 'var(--gem-d12)');
+        tile.textContent = signed(value);
+        tile.setAttribute('aria-label', 'Modifier ' + signed(value));
+        tile.setAttribute('aria-pressed', value === modifier ? 'true' : 'false');
+        tile.addEventListener('click', () => {
+          tapFeedback(tile);
+          modifier = value;
+          saveValue(STORAGE_MODIFIER, modifier);
+          renderModifierGrid();
+        });
+        grid.appendChild(tile);
+      });
+    }
+    renderModifierGrid();
+
+    // ---- rolling ----
+
+    function rollDie(sides) { return 1 + Math.floor(Math.random() * sides); }
+
+    const OUTCOME_LABEL = { strong: 'Strong Hit', weak: 'Weak Hit', miss: 'Miss' };
+    const OUTCOME_GEM = { strong: '--hit-strong', weak: '--hit-weak', miss: '--hit-miss' };
+
+    function rollIronsworn() {
+      const die = rollDie(6);
+      const c1 = rollDie(10);
+      const c2 = rollDie(10);
+      // Action score floors at 0 (a heavily-debilitated character can't go
+      // below it) but has no explicit ceiling - nothing above 10 behaves any
+      // differently against a d10 challenge die than exactly 10 does.
+      const score = Math.max(0, die + modifier);
+      const beats = (score > c1 ? 1 : 0) + (score > c2 ? 1 : 0);
+      const outcome = beats === 2 ? 'strong' : beats === 1 ? 'weak' : 'miss';
+      const matchText = c1 === c2 ? ' • Match' : '';
+
+      logCard({
+        label: OUTCOME_LABEL[outcome] + matchText,
+        gemVarName: OUTCOME_GEM[outcome],
+        detailText: `d6 ${die} ${signed(modifier)} vs ${c1}, ${c2}`,
+        total: score,
+        isError: false,
+      });
+      reportToNative(`🎲 ${GAMES.ironsworn.label}: ${OUTCOME_LABEL[outcome]}${matchText} — d6 ${die} ${signed(modifier)} = ${score} vs ${c1}, ${c2}`, score);
+    }
+
+    function rollApocalypseWorld() {
+      const d1 = rollDie(6);
+      const d2 = rollDie(6);
+      const score = d1 + d2 + modifier;
+      const outcome = score >= 10 ? 'strong' : score >= 7 ? 'weak' : 'miss';
+
+      logCard({
+        label: OUTCOME_LABEL[outcome],
+        gemVarName: OUTCOME_GEM[outcome],
+        detailText: `2d6 ${d1}, ${d2} ${signed(modifier)} = ${score}`,
+        total: score,
+        isError: false,
+      });
+      reportToNative(`🎲 ${GAMES.apocalypseWorld.label}: ${OUTCOME_LABEL[outcome]} — 2d6 ${d1}, ${d2} ${signed(modifier)} = ${score}`, score);
+    }
+
+    function executeRoll() {
+      tapFeedback(rollBtn);
+      if (game === 'apocalypseWorld') rollApocalypseWorld();
+      else rollIronsworn();
+      log.scrollTop = log.scrollHeight;
+    }
+
+    const rollBtn = document.getElementById('rollBtn');
+    rollBtn.addEventListener('click', executeRoll);
+  </script>
+</body>
+</html>
