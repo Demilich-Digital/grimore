@@ -118,11 +118,11 @@
 
   <div class="game-picker">
     <button id="gameTrigger" class="game-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
-      <span id="gameTriggerLabel">Ironsworn</span>
+      <span id="gameTriggerLabel">Ironsworn / Starforged</span>
       <svg class="game-chevron" viewBox="0 0 24 24" fill="none"><polyline points="6 9 12 15 18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
     <div id="gameMenu" class="game-menu" role="listbox" aria-label="Game" hidden>
-      <button type="button" class="game-menu-item" data-key="ironsworn" role="option" aria-selected="true">Ironsworn</button>
+      <button type="button" class="game-menu-item" data-key="ironsworn" role="option" aria-selected="true">Ironsworn / Starforged</button>
       <button type="button" class="game-menu-item" data-key="apocalypseWorld" role="option" aria-selected="false">Apocalypse World</button>
     </div>
   </div>
@@ -149,7 +149,7 @@
     // strong hit, 7-9 a weak hit, 6 or under a miss. No challenge dice, so no
     // match - that concept doesn't exist in the AW engine.
     const GAMES = {
-      ironsworn: { label: 'Ironsworn', hint: 'Pick your modifier, then roll: 1d6 + modifier vs two d10 challenge dice.' },
+      ironsworn: { label: 'Ironsworn / Starforged', hint: 'Pick your modifier, then roll: 1d6 + modifier vs two d10 challenge dice.' },
       apocalypseWorld: { label: 'Apocalypse World', hint: 'Pick your modifier, then roll: 2d6 + modifier - 10+ strong hit, 7-9 weak hit, 6- miss.' },
     };
     const STORAGE_GAME = 'bubbletools.actionRoll.game';
