@@ -1,0 +1,217 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ironsworn Delve Site Oracles</title>
+<script src="../shared/bubble.js"></script>
+<link rel="stylesheet" href="../shared/theme.css">
+<style>
+  #grid { grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); }
+  /* Two-tap navigation, same shape as the Starforged Planet Oracles tool:
+     the landing grid holds the two persistent "current theme/domain" nav
+     tiles plus the actual roll buttons; tapping a nav tile swaps in that
+     axis's own picker sub-grid (8 themes or 12 domains, each with a Random
+     tile up top), and the back bar is the only way back up. Feature and
+     Danger rolls read whichever theme/domain are currently selected, so
+     unlike Planet Oracles there are two different sub-grids to come back
+     from, not one per landing tile. */
+  .site-back-bar {
+    flex: 0 0 auto;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .site-back-bar[hidden] { display: none; }
+  .site-back-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--card);
+    border: 1.5px solid var(--line);
+    border-radius: 999px;
+    padding: 10px 16px;
+    font-family: "Figtree", sans-serif;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .site-back-icon { width: 16px; height: 16px; color: var(--muted); flex: 0 0 auto; }
+</style>
+</head>
+<body>
+  <noscript>
+    <div style="padding:16px;font-family:system-ui,sans-serif;">
+      <h2>Ironsworn Delve Site Oracles</h2>
+      <p>This tool needs JavaScript, which is currently disabled in this WebView.</p>
+      <p>That shouldn't happen - the app enables it itself. Please report this bug.</p>
+    </div>
+  </noscript>
+
+  <div id="backBar" class="site-back-bar" hidden>
+    <button id="backBtn" class="site-back-btn" type="button">
+      <svg class="site-back-icon" viewBox="0 0 24 24" fill="none"><polyline points="15 6 9 12 15 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span id="backLabel">Site</span>
+    </button>
+  </div>
+  <div id="log"></div>
+  <div id="grid"></div>
+
+  <script src="../shared/oracle.js"></script>
+  <script>
+    // Ironsworn: Delve oracles, by Shawn Tomkin - CC BY 4.0
+    // (https://creativecommons.org/licenses/by/4.0). Sourced from Datasworn
+    // (https://github.com/rsek/datasworn). Rows are {min, max, text}; roll
+    // 1d100 and find the row whose range contains it.
+
+    // Site Nature: which theme/domain a fresh delve site starts with. Text is
+    // the THEMES/DOMAINS key below (not the display name) so a roll can index
+    // straight into the theme/domain data without a separate name lookup.
+    const THEME_PICK = {"name":"Theme","dice":"1d100","rows":[{"min":1,"max":11,"text":"ancient"},{"min":12,"max":23,"text":"corrupted"},{"min":24,"max":35,"text":"fortified"},{"min":36,"max":48,"text":"hallowed"},{"min":49,"max":61,"text":"haunted"},{"min":62,"max":74,"text":"infested"},{"min":75,"max":87,"text":"ravaged"},{"min":88,"max":100,"text":"wild"}]};
+    const DOMAIN_PICK = {"name":"Domain","dice":"1d100","rows":[{"min":1,"max":6,"text":"barrow"},{"min":7,"max":18,"text":"cavern"},{"min":19,"max":28,"text":"frozen_cavern"},{"min":29,"max":32,"text":"icereach"},{"min":33,"max":38,"text":"mine"},{"min":39,"max":48,"text":"pass"},{"min":49,"max":58,"text":"ruin"},{"min":59,"max":68,"text":"sea_cave"},{"min":69,"max":78,"text":"shadowfen"},{"min":79,"max":83,"text":"stronghold"},{"min":84,"max":95,"text":"tanglewood"},{"min":96,"max":100,"text":"underkeep"}]};
+
+    // Site Themes (8) and Site Domains (12): each carries its own Feature and
+    // Danger table. A theme's Feature table only covers rolls 1-20 and its
+    // Danger table only 1-30 - the rest of the 1d100 range is the matching
+    // domain's table (Feature 21-100) or, for Danger 46-100, the general
+    // dangers baked into Reveal a Danger below. Same roll number is reused
+    // across whichever table it lands in - see rollFeature/rollDanger.
+    const THEMES = {"ancient":{"name":"Ancient","features":[{"min":1,"max":4,"text":"Evidence of lost knowledge"},{"min":5,"max":8,"text":"Inscrutable relics"},{"min":9,"max":12,"text":"Ancient artistry or craft"},{"min":13,"max":16,"text":"Preserved corpses or fossils"},{"min":17,"max":20,"text":"Visions of this place in another time"}],"dangers":[{"min":1,"max":5,"text":"Ancient trap"},{"min":6,"max":10,"text":"Hazardous architecture or terrain"},{"min":11,"max":12,"text":"Blocked or broken path"},{"min":13,"max":14,"text":"Denizen protects an ancient secret"},{"min":15,"max":16,"text":"Denizen reveres an ancient power"},{"min":17,"max":18,"text":"Living relics of a lost age"},{"min":19,"max":20,"text":"Ancient evil resurgent"},{"min":21,"max":22,"text":"Dire warnings of a long-buried danger"},{"min":23,"max":24,"text":"Ancient disease or contamination"},{"min":25,"max":26,"text":"Artifact of terrible meaning or power"},{"min":27,"max":28,"text":"Disturbing evidence of ancient wrongs"},{"min":29,"max":30,"text":"Others seek power or knowledge"}]},"corrupted":{"name":"Corrupted","features":[{"min":1,"max":4,"text":"Mystic focus or conduit"},{"min":5,"max":8,"text":"Strange environmental disturbances"},{"min":9,"max":12,"text":"Mystic runes or markings"},{"min":13,"max":16,"text":"Blight or decay"},{"min":17,"max":20,"text":"Evidence of a foul ritual"}],"dangers":[{"min":1,"max":5,"text":"Denizen spawned from dark magic"},{"min":6,"max":10,"text":"Denizen controls dark magic"},{"min":11,"max":12,"text":"Denizen corrupted by dark magic"},{"min":13,"max":14,"text":"Corruption marks you"},{"min":15,"max":16,"text":"Innocents held in thrall"},{"min":17,"max":18,"text":"Revelations of a terrible truth"},{"min":19,"max":20,"text":"Mystic trap or trigger"},{"min":21,"max":22,"text":"Mystic barrier or ward"},{"min":23,"max":24,"text":"Illusions lead you astray"},{"min":25,"max":26,"text":"Dark ritual in progress"},{"min":27,"max":28,"text":"Lingering effects of a dark ritual"},{"min":29,"max":30,"text":"Dread harbingers of a greater magic"}]},"fortified":{"name":"Fortified","features":[{"min":1,"max":4,"text":"Camp or quarters"},{"min":5,"max":8,"text":"Guarded location"},{"min":9,"max":12,"text":"Storage or repository"},{"min":13,"max":16,"text":"Work or training area"},{"min":17,"max":20,"text":"Command center or leadership"}],"dangers":[{"min":1,"max":5,"text":"Denizen patrols the area"},{"min":6,"max":10,"text":"Denizen on guard"},{"min":11,"max":12,"text":"Denizen ready to sound the alarm"},{"min":13,"max":14,"text":"Denizen sets an ambush"},{"min":15,"max":16,"text":"Denizen lures you into a trap"},{"min":17,"max":18,"text":"Denizens converge on this area"},{"min":19,"max":20,"text":"Pets or underlings"},{"min":21,"max":22,"text":"Unexpected alliance revealed"},{"min":23,"max":24,"text":"Nefarious plans revealed"},{"min":25,"max":26,"text":"Unexpected leader revealed"},{"min":27,"max":28,"text":"Trap"},{"min":29,"max":30,"text":"Alarm trigger"}]},"hallowed":{"name":"Hallowed","features":[{"min":1,"max":4,"text":"Temple or altar"},{"min":5,"max":8,"text":"Offerings or atonements"},{"min":9,"max":12,"text":"Religious relic or idol"},{"min":13,"max":16,"text":"Consecrated ground"},{"min":17,"max":20,"text":"Dwellings or gathering place"}],"dangers":[{"min":1,"max":5,"text":"Denizen defends their sanctum"},{"min":6,"max":10,"text":"Denizen enacts the will of their god"},{"min":11,"max":12,"text":"Denizen seeks martyrdom"},{"min":13,"max":14,"text":"Secret of the faith is revealed"},{"min":15,"max":16,"text":"Greater purpose is revealed"},{"min":17,"max":18,"text":"Unexpected disciples are revealed"},{"min":19,"max":20,"text":"Divine manifestations"},{"min":21,"max":22,"text":"Aspect of the faith beguiles you"},{"min":23,"max":24,"text":"Unexpected leader is revealed"},{"min":25,"max":26,"text":"Embodiment of a god or myth"},{"min":27,"max":28,"text":"Protective ward or barrier"},{"min":29,"max":30,"text":"Prophecies reveal a dark fate"}]},"haunted":{"name":"Haunted","features":[{"min":1,"max":4,"text":"Tomb or burial site"},{"min":5,"max":8,"text":"Blood was spilled here"},{"min":9,"max":12,"text":"Unnatural mists or darkness"},{"min":13,"max":16,"text":"Messages from beyond the grave"},{"min":17,"max":20,"text":"Apparitions of a person or event"}],"dangers":[{"min":1,"max":5,"text":"Denizen haunts this area"},{"min":6,"max":10,"text":"Unsettling sounds or foreboding signs"},{"min":11,"max":12,"text":"Denizen attacks without warning"},{"min":13,"max":14,"text":"Denizen makes a costly demand"},{"min":15,"max":16,"text":"Denizen seizes your body or mind"},{"min":17,"max":18,"text":"Denizen taunts or lures you"},{"min":19,"max":20,"text":"A disturbing truth is revealed"},{"min":21,"max":22,"text":"Frightening visions"},{"min":23,"max":24,"text":"The environment is used against you"},{"min":25,"max":26,"text":"Trickery leads you astray"},{"min":27,"max":28,"text":"True nature of this place is revealed"},{"min":29,"max":30,"text":"Sudden, shocking manifestation"}]},"infested":{"name":"Infested","features":[{"min":1,"max":4,"text":"Inhabited nest"},{"min":5,"max":8,"text":"Abandoned nest"},{"min":9,"max":12,"text":"Ravaged terrain or architecture"},{"min":13,"max":16,"text":"Remains or carrion"},{"min":17,"max":20,"text":"Hoarded food"}],"dangers":[{"min":1,"max":5,"text":"Denizens swarm and attack"},{"min":6,"max":10,"text":"Toxic or sickening environment"},{"min":11,"max":12,"text":"Denizen stalks you"},{"min":13,"max":14,"text":"Denizen takes or destroys something"},{"min":15,"max":16,"text":"Denizen reveals surprising cleverness"},{"min":17,"max":18,"text":"Denizen guided by a greater threat"},{"min":19,"max":20,"text":"Denizen blocks the path"},{"min":21,"max":22,"text":"Denizen funnels you down a new path"},{"min":23,"max":24,"text":"Denizen undermines the path"},{"min":25,"max":26,"text":"Denizen lays in wait"},{"min":27,"max":28,"text":"Trap or snare"},{"min":29,"max":30,"text":"Victim's horrible fate is revealed"}]},"ravaged":{"name":"Ravaged","features":[{"min":1,"max":4,"text":"Path of destruction"},{"min":5,"max":8,"text":"Abandoned or ruined dwelling"},{"min":9,"max":12,"text":"Untouched or preserved area"},{"min":13,"max":16,"text":"Traces of what was lost"},{"min":17,"max":20,"text":"Ill-fated victims"}],"dangers":[{"min":1,"max":5,"text":"Precarious architecture or terrain"},{"min":6,"max":10,"text":"Imminent collapse or destruction"},{"min":11,"max":12,"text":"Path undermined"},{"min":13,"max":14,"text":"Blocked or broken path"},{"min":15,"max":16,"text":"Vestiges of a destructive force"},{"min":17,"max":18,"text":"Unexpected environmental threat"},{"min":19,"max":20,"text":"Echoes of a troubling past"},{"min":21,"max":22,"text":"Signs of a horrible fate"},{"min":23,"max":24,"text":"Denizen seeks retribution"},{"min":25,"max":26,"text":"Denizen leverages the environment"},{"min":27,"max":28,"text":"Denizen restores what was lost"},{"min":29,"max":30,"text":"Ravages return anew"}]},"wild":{"name":"Wild","features":[{"min":1,"max":4,"text":"Denizen's lair"},{"min":5,"max":8,"text":"Territorial markings"},{"min":9,"max":12,"text":"Impressive flora or fauna"},{"min":13,"max":16,"text":"Hunting ground or watering hole"},{"min":17,"max":20,"text":"Remains or carrion"}],"dangers":[{"min":1,"max":5,"text":"Denizen hunts"},{"min":6,"max":10,"text":"Denizen strikes without warning"},{"min":11,"max":12,"text":"Denizen leverages the environment"},{"min":13,"max":14,"text":"Denizen wields unexpected abilities"},{"min":15,"max":16,"text":"Denizen guided by a greater threat"},{"min":17,"max":18,"text":"Denizen protects something"},{"min":19,"max":20,"text":"Hazardous terrain"},{"min":21,"max":22,"text":"Weather or environmental threat"},{"min":23,"max":24,"text":"Benign aspect becomes a threat"},{"min":25,"max":26,"text":"Overzealous hunter"},{"min":27,"max":28,"text":"Disturbing evidence of a victim's fate"},{"min":29,"max":30,"text":"Ill-fated victim in danger"}]}};
+    const DOMAINS = {"barrow":{"name":"Barrow","features":[{"min":21,"max":43,"text":"Burial chambers"},{"min":44,"max":56,"text":"Maze of narrow passages"},{"min":57,"max":64,"text":"Shrine"},{"min":65,"max":68,"text":"Stately vault"},{"min":69,"max":72,"text":"Offerings to the dead"},{"min":73,"max":76,"text":"Statuary or tapestries"},{"min":77,"max":80,"text":"Remains of a grave robber"},{"min":81,"max":84,"text":"Mass grave"},{"min":85,"max":88,"text":"Exhumed corpses"},{"min":89,"max":98,"text":"Something unusual or unexpected"},{"min":99,"max":99,"text":"You transition into a new theme"},{"min":100,"max":100,"text":"You transition into a new domain"}],"dangers":[{"min":31,"max":33,"text":"Denizen guards this area"},{"min":34,"max":36,"text":"Trap"},{"min":37,"max":39,"text":"Death makes its presence known"},{"min":40,"max":42,"text":"Crumbling architecture"},{"min":43,"max":45,"text":"Grave goods with hidden dangers"}]},"cavern":{"name":"Cavern","features":[{"min":21,"max":43,"text":"Twisting passages"},{"min":44,"max":56,"text":"Cramped caves"},{"min":57,"max":64,"text":"Vast chamber"},{"min":65,"max":68,"text":"Subterranean waterway"},{"min":69,"max":72,"text":"Cave pool"},{"min":73,"max":76,"text":"Natural bridge"},{"min":77,"max":80,"text":"Towering stone formations"},{"min":81,"max":84,"text":"Natural illumination"},{"min":85,"max":88,"text":"Dark pit"},{"min":89,"max":98,"text":"Something unusual or unexpected"},{"min":99,"max":99,"text":"You transition into a new theme"},{"min":100,"max":100,"text":"You transition into a new domain"}],"dangers":[{"min":31,"max":33,"text":"Denizen lairs here"},{"min":34,"max":36,"text":"Cave-in"},{"min":37,"max":39,"text":"Flooding"},{"min":40,"max":42,"text":"Perilous climb or descent"},{"min":43,"max":45,"text":"Fissure or sinkhole"}]},"frozen_cavern":{"name":"Frozen Cavern","features":[{"min":21,"max":43,"text":"Maze of icy tunnels"},{"min":44,"max":56,"text":"Glistening cave"},{"min":57,"max":64,"text":"Vast chamber"},{"min":65,"max":68,"text":"Frigid waterway"},{"min":69,"max":72,"text":"Icy pools"},{"min":73,"max":76,"text":"Magnificent ice formations"},{"min":77,"max":80,"text":"Frozen waterfall"},{"min":81,"max":84,"text":"Deep crevasses"},{"min":85,"max":88,"text":"Discovery locked in the ice"},{"min":89,"max":98,"text":"Something unusual or unexpected"},{"min":99,"max":99,"text":"You transition into a new theme"},{"min":100,"max":100,"text":"You transition into a new domain"}],"dangers":[{"min":31,"max":33,"text":"Denizen lairs here"},{"min":34,"max":36,"text":"Fracturing ice"},{"min":37,"max":39,"text":"Crumbling chasm"},{"min":40,"max":42,"text":"Bitter chill"},{"min":43,"max":45,"text":"Disorienting reflections"}]},"icereach":{"name":"Icereach","features":[{"min":21,"max":43,"text":"Plains of ice and snow"},{"min":44,"max":56,"text":"Seawater channel"},{"min":57,"max":64,"text":"Icy highlands"},{"min":65,"max":68,"text":"Crevasse"},{"min":69,"max":72,"text":"Ice floes"},{"min":73,"max":76,"text":"Ship trapped in ice"},{"min":77,"max":80,"text":"Animal herd or habitat"},{"min":81,"max":84,"text":"Frozen carcass"},{"min":85,"max":88,"text":"Camp or shelter"},{"min":89,"max":98,"text":"Something unusual or unexpected"},{"min":99,"max":99,"text":"You transition into a new theme"},{"min":100,"max":100,"text":"You transition into a new domain"}],"dangers":[{"min":31,"max":33,"text":"Denizen hunts"},{"min":34,"max":36,"text":"Fragile ice above watery depths"},{"min":37,"max":39,"text":"Perilous climb or descent"},{"min":40,"max":42,"text":"Avalanche or icefall"},{"min":43,"max":45,"text":"Foul weather"}]},"mine":{"name":"Mine","features":[{"min":21,"max":43,"text":"Cramped tunnels"},{"min":44,"max":56,"text":"Mine works"},{"min":57,"max":64,"text":"Excavated chamber"},{"min":65,"max":68,"text":"Mineshaft"},{"min":69,"max":72,"text":"Collapsed tunnel"},{"min":73,"max":76,"text":"Cluttered storage"},{"min":77,"max":80,"text":"Housing or common areas"},{"min":81,"max":84,"text":"Flooded chamber"},{"min":85,"max":88,"text":"Unearthed secret"},{"min":89,"max":98,"text":"Something unusual or unexpected"},{"min":99,"max":99,"text":"You transition into a new theme"},{"min":100,"max":100,"text":"You transition into a new domain"}],"dangers":[{"min":31,"max":33,"text":"Cave-in"},{"min":34,"max":36,"text":"Flooding"},{"min":37,"max":39,"text":"Unstable platforms or architecture"},{"min":40,"max":42,"text":"Hazardous gas pocket"},{"min":43,"max":45,"text":"Weakened terrain"}]},"pass":{"name":"Pass","features":[{"min":21,"max":43,"text":"Winding mountain path"},{"min":44,"max":56,"text":"Snowfield or glacial rocks"},{"min":57,"max":64,"text":"River gorge"},{"min":65,"max":68,"text":"Crashing waterfall"},{"min":69,"max":72,"text":"Highland lake"},{"min":73,"max":76,"text":"Forgotten cairn"},{"min":77,"max":80,"text":"Bridge"},{"min":81,"max":84,"text":"Overlook"},{"min":85,"max":88,"text":"Camp or outpost"},{"min":89,"max":98,"text":"Something unusual or unexpected"},{"min":99,"max":99,"text":"You transition into a new theme"},{"min":100,"max":100,"text":"You transition into a new domain"}],"dangers":[{"min":31,"max":33,"text":"Denizen lairs here"},{"min":34,"max":36,"text":"Denizen hunts"},{"min":37,"max":39,"text":"Perilous climb or descent"},{"min":40,"max":42,"text":"Avalanche or rockslide"},{"min":43,"max":45,"text":"Foul weather"}]},"ruin":{"name":"Ruin","features":[{"min":21,"max":43,"text":"Crumbling corridors and chambers"},{"min":44,"max":56,"text":"Collapsed architecture"},{"min":57,"max":64,"text":"Rubble-choked hall"},{"min":65,"max":68,"text":"Courtyard"},{"min":69,"max":72,"text":"Archive or library"},{"min":73,"max":76,"text":"Broken statuary or fading murals"},{"min":77,"max":80,"text":"Preserved vault"},{"min":81,"max":84,"text":"Temple to forgotten gods"},{"min":85,"max":88,"text":"Mausoleum"},{"min":89,"max":98,"text":"Something unusual or unexpected"},{"min":99,"max":99,"text":"You transition into a new theme"},{"min":100,"max":100,"text":"You transition into a new domain"}],"dangers":[{"min":31,"max":33,"text":"Ancient mechanism or trap"},{"min":34,"max":36,"text":"Collapsing wall or ceiling"},{"min":37,"max":39,"text":"Blocked or broken passage"},{"min":40,"max":42,"text":"Unstable floor above a new danger"},{"min":43,"max":45,"text":"Ancient secrets best left buried"}]},"sea_cave":{"name":"Sea Cave","features":[{"min":21,"max":43,"text":"Watery tunnels"},{"min":44,"max":56,"text":"Eroded chamber"},{"min":57,"max":64,"text":"Flooded chamber"},{"min":65,"max":68,"text":"Vast chamber"},{"min":69,"max":72,"text":"Dry passages"},{"min":73,"max":76,"text":"Freshwater inlet"},{"min":77,"max":80,"text":"Rocky island"},{"min":81,"max":84,"text":"Waterborne debris"},{"min":85,"max":88,"text":"Shipwreck or boat"},{"min":89,"max":98,"text":"Something unusual or unexpected"},{"min":99,"max":99,"text":"You transition into a new theme"},{"min":100,"max":100,"text":"You transition into a new domain"}],"dangers":[{"min":31,"max":33,"text":"Denizen strikes without warning"},{"min":34,"max":36,"text":"Denizen lurks below"},{"min":37,"max":39,"text":"Flooding"},{"min":40,"max":42,"text":"Rushing current"},{"min":43,"max":45,"text":"Claustrophobic squeeze"}]},"shadowfen":{"name":"Shadowfen","features":[{"min":21,"max":43,"text":"Narrow path through a fetid bog"},{"min":44,"max":56,"text":"Stagnant waterway"},{"min":57,"max":64,"text":"Flooded thicket"},{"min":65,"max":68,"text":"Island of dry land"},{"min":69,"max":72,"text":"Submerged discovery"},{"min":73,"max":76,"text":"Preserved corpses"},{"min":77,"max":80,"text":"Overgrown structure"},{"min":81,"max":84,"text":"Tall reeds"},{"min":85,"max":88,"text":"Camp or outpost"},{"min":89,"max":98,"text":"Something unusual or unexpected"},{"min":99,"max":99,"text":"You transition into a new theme"},{"min":100,"max":100,"text":"You transition into a new domain"}],"dangers":[{"min":31,"max":33,"text":"Denizen hunts"},{"min":34,"max":36,"text":"Deep water blocks the path"},{"min":37,"max":39,"text":"Toxic environment"},{"min":40,"max":42,"text":"Concealing or disorienting mist"},{"min":43,"max":45,"text":"Hidden quagmire"}]},"stronghold":{"name":"Stronghold","features":[{"min":21,"max":43,"text":"Connecting passageways"},{"min":44,"max":56,"text":"Barracks or common quarters"},{"min":57,"max":64,"text":"Large hall"},{"min":65,"max":68,"text":"Workshop or library"},{"min":69,"max":72,"text":"Command center or leadership"},{"min":73,"max":76,"text":"Ladder or stairwell"},{"min":77,"max":80,"text":"Storage"},{"min":81,"max":84,"text":"Kitchen or larder"},{"min":85,"max":88,"text":"Courtyard"},{"min":89,"max":98,"text":"Something unusual or unexpected"},{"min":99,"max":99,"text":"You transition into a new theme"},{"min":100,"max":100,"text":"You transition into a new domain"}],"dangers":[{"min":31,"max":33,"text":"Blocked or guarded path"},{"min":34,"max":36,"text":"Caught in the open"},{"min":37,"max":39,"text":"Chokepoint"},{"min":40,"max":42,"text":"Trap"},{"min":43,"max":45,"text":"Alarm trigger"}]},"tanglewood":{"name":"Tanglewood","features":[{"min":21,"max":43,"text":"Dense thicket"},{"min":44,"max":56,"text":"Overgrown path"},{"min":57,"max":64,"text":"Waterway"},{"min":65,"max":68,"text":"Clearing"},{"min":69,"max":72,"text":"Elder tree"},{"min":73,"max":76,"text":"Brambles"},{"min":77,"max":80,"text":"Overgrown structure"},{"min":81,"max":84,"text":"Rocky outcrop"},{"min":85,"max":88,"text":"Camp or outpost"},{"min":89,"max":98,"text":"Something unusual or unexpected"},{"min":99,"max":99,"text":"You transition into a new theme"},{"min":100,"max":100,"text":"You transition into a new domain"}],"dangers":[{"min":31,"max":33,"text":"Denizen hunts"},{"min":34,"max":36,"text":"Denizen lairs here"},{"min":37,"max":39,"text":"Trap or snare"},{"min":40,"max":42,"text":"Path leads you astray"},{"min":43,"max":45,"text":"Entangling plant life"}]},"underkeep":{"name":"Underkeep","features":[{"min":21,"max":43,"text":"Carved passages"},{"min":44,"max":56,"text":"Hall or chamber"},{"min":57,"max":64,"text":"Stairs into the depths"},{"min":65,"max":68,"text":"Grand doorway or entrance"},{"min":69,"max":72,"text":"Tomb or catacombs"},{"min":73,"max":76,"text":"Rough-hewn cave"},{"min":77,"max":80,"text":"Foundry or workshop"},{"min":81,"max":84,"text":"Shrine or temple"},{"min":85,"max":88,"text":"Imposing architecture or artistry"},{"min":89,"max":98,"text":"Something unusual or unexpected"},{"min":99,"max":99,"text":"You transition into a new theme"},{"min":100,"max":100,"text":"You transition into a new domain"}],"dangers":[{"min":31,"max":33,"text":"Ancient mechanism or trap"},{"min":34,"max":36,"text":"Crumbling architecture"},{"min":37,"max":39,"text":"Blocked or broken passage"},{"min":40,"max":42,"text":"Artifact with a hidden danger"},{"min":43,"max":45,"text":"Denizen lurks in darkness"}]}};
+
+    // Reveal a Danger: rolls 1-30/31-45 point back at the theme/domain danger
+    // tables above (using the same roll number); 46-100 are its own general
+    // dangers, used directly by rollDanger() below.
+    const REVEAL_DANGER = {"name":"Reveal a Danger","dice":"1d100","rows":[{"min":1,"max":30,"text":"Check the theme card."},{"min":31,"max":45,"text":"Check the domain card."},{"min":46,"max":57,"text":"You encounter a hostile denizen."},{"min":58,"max":68,"text":"You face an environmental or architectural hazard."},{"min":69,"max":76,"text":"A discovery undermines or complicates your quest."},{"min":77,"max":79,"text":"You confront a harrowing situation or sensation."},{"min":80,"max":82,"text":"You face the consequences of an earlier choice or approach."},{"min":83,"max":85,"text":"Your way is blocked or trapped."},{"min":86,"max":88,"text":"A resource is diminished, broken, or lost."},{"min":89,"max":91,"text":"You face a perplexing mystery or tough choice."},{"min":92,"max":94,"text":"You lose your way or are delayed."},{"min":95,"max":100,"text":"Roll twice more on this table. Both results occur. If they are the same result, make it worse."}]};
+
+    // A "Something unusual or unexpected" Feature result points here.
+    const ASPECT_TABLE = {"name":"Aspect","dice":"1d100","rows":[{"min":1,"max":2,"text":"Blocked"},{"min":3,"max":4,"text":"Crafted"},{"min":5,"max":6,"text":"Ancient"},{"min":7,"max":8,"text":"Sunken"},{"min":9,"max":10,"text":"Trapped"},{"min":11,"max":12,"text":"Secret"},{"min":13,"max":14,"text":"Toxic"},{"min":15,"max":16,"text":"Ruined"},{"min":17,"max":18,"text":"Defended"},{"min":19,"max":20,"text":"Decaying"},{"min":21,"max":22,"text":"Marked"},{"min":23,"max":24,"text":"Guarded"},{"min":25,"max":26,"text":"Inaccessible"},{"min":27,"max":28,"text":"Foreboding"},{"min":29,"max":30,"text":"Veiled"},{"min":31,"max":32,"text":"Deep"},{"min":33,"max":34,"text":"Depleted"},{"min":35,"max":36,"text":"Foul"},{"min":37,"max":38,"text":"Elevated"},{"min":39,"max":40,"text":"Moving"},{"min":41,"max":42,"text":"Unnatural"},{"min":43,"max":44,"text":"Active"},{"min":45,"max":46,"text":"Confined"},{"min":47,"max":48,"text":"Fortified"},{"min":49,"max":50,"text":"Collapsed"},{"min":51,"max":52,"text":"Isolated"},{"min":53,"max":54,"text":"Destroyed"},{"min":55,"max":56,"text":"Open"},{"min":57,"max":58,"text":"Sacred"},{"min":59,"max":60,"text":"Flooded"},{"min":61,"max":62,"text":"Complex"},{"min":63,"max":64,"text":"Abundant"},{"min":65,"max":66,"text":"Hidden"},{"min":67,"max":68,"text":"Expansive"},{"min":69,"max":70,"text":"Mysterious"},{"min":71,"max":72,"text":"Unstable"},{"min":73,"max":74,"text":"Fragile"},{"min":75,"max":76,"text":"Broken"},{"min":77,"max":78,"text":"Ensnaring"},{"min":79,"max":80,"text":"Pillaged"},{"min":81,"max":82,"text":"Sealed"},{"min":83,"max":84,"text":"Makeshift"},{"min":85,"max":86,"text":"Treacherous"},{"min":87,"max":88,"text":"Natural"},{"min":89,"max":90,"text":"Dead"},{"min":91,"max":92,"text":"Unusual"},{"min":93,"max":94,"text":"Abandoned"},{"min":95,"max":96,"text":"Deadly"},{"min":97,"max":98,"text":"Forgotten"},{"min":99,"max":100,"text":"Mystical"}]};
+    const FOCUS_TABLE = {"name":"Focus","dice":"1d100","rows":[{"min":1,"max":2,"text":"Attack"},{"min":3,"max":4,"text":"Threshold"},{"min":5,"max":6,"text":"Boundary"},{"min":7,"max":8,"text":"Alarm"},{"min":9,"max":10,"text":"Exit"},{"min":11,"max":12,"text":"Passage"},{"min":13,"max":14,"text":"Crossing"},{"min":15,"max":16,"text":"Trigger"},{"min":17,"max":18,"text":"Trap"},{"min":19,"max":20,"text":"Hideaway"},{"min":21,"max":22,"text":"Nature"},{"min":23,"max":24,"text":"Sign"},{"min":25,"max":26,"text":"Refuge"},{"min":27,"max":28,"text":"Valuables"},{"min":29,"max":30,"text":"Breach"},{"min":31,"max":32,"text":"Route"},{"min":33,"max":34,"text":"Location"},{"min":35,"max":36,"text":"Trail"},{"min":37,"max":38,"text":"Supply"},{"min":39,"max":40,"text":"History"},{"min":41,"max":42,"text":"Prisoner"},{"min":43,"max":44,"text":"Habitation"},{"min":45,"max":46,"text":"Debris"},{"min":47,"max":48,"text":"Creature"},{"min":49,"max":50,"text":"Lair"},{"min":51,"max":52,"text":"Person"},{"min":53,"max":54,"text":"Enclosure"},{"min":55,"max":56,"text":"Remains"},{"min":57,"max":58,"text":"Water"},{"min":59,"max":60,"text":"Message"},{"min":61,"max":62,"text":"Darkness"},{"min":63,"max":64,"text":"Opening"},{"min":65,"max":66,"text":"Weapon"},{"min":67,"max":68,"text":"Entry"},{"min":69,"max":70,"text":"Illumination"},{"min":71,"max":72,"text":"Obstacle"},{"min":73,"max":74,"text":"Craft"},{"min":75,"max":76,"text":"Container"},{"min":77,"max":78,"text":"Information"},{"min":79,"max":80,"text":"Grave"},{"min":81,"max":82,"text":"Equipment"},{"min":83,"max":84,"text":"Shelter"},{"min":85,"max":86,"text":"Denizen"},{"min":87,"max":88,"text":"Environment"},{"min":89,"max":90,"text":"Material"},{"min":91,"max":92,"text":"Resource"},{"min":93,"max":94,"text":"Corruption"},{"min":95,"max":96,"text":"Death"},{"min":97,"max":98,"text":"Function"},{"min":99,"max":100,"text":"Power"}]};
+
+    // A "Trap" danger result points here: roll both for what the trap does
+    // and what it uses to do it.
+    const TRAP_EVENT_TABLE = {"name":"Trap Event","dice":"1d100","rows":[{"min":1,"max":4,"text":"Block"},{"min":5,"max":8,"text":"Create"},{"min":9,"max":12,"text":"Break"},{"min":13,"max":16,"text":"Puncture"},{"min":17,"max":20,"text":"Entangle"},{"min":21,"max":24,"text":"Enclose"},{"min":25,"max":28,"text":"Ambush"},{"min":29,"max":32,"text":"Snare"},{"min":33,"max":36,"text":"Change"},{"min":37,"max":40,"text":"Imitate"},{"min":41,"max":44,"text":"Crush"},{"min":45,"max":48,"text":"Drop"},{"min":49,"max":52,"text":"Conceal"},{"min":53,"max":56,"text":"Lure"},{"min":57,"max":60,"text":"Release"},{"min":61,"max":64,"text":"Obscure"},{"min":65,"max":68,"text":"Cut"},{"min":69,"max":72,"text":"Smother"},{"min":73,"max":76,"text":"Collapse"},{"min":77,"max":80,"text":"Summon"},{"min":81,"max":84,"text":"Move"},{"min":85,"max":88,"text":"Surprise"},{"min":89,"max":92,"text":"Divert"},{"min":93,"max":96,"text":"Attack"},{"min":97,"max":100,"text":"Trigger"}]};
+    const TRAP_COMPONENT_TABLE = {"name":"Trap Component","dice":"1d100","rows":[{"min":1,"max":4,"text":"Pit"},{"min":5,"max":8,"text":"Water"},{"min":9,"max":12,"text":"Fire"},{"min":13,"max":16,"text":"Projectile"},{"min":17,"max":20,"text":"Passage"},{"min":21,"max":24,"text":"Fall"},{"min":25,"max":28,"text":"Debris"},{"min":29,"max":32,"text":"Fear"},{"min":33,"max":36,"text":"Alarm"},{"min":37,"max":40,"text":"Trigger"},{"min":41,"max":44,"text":"Cold"},{"min":45,"max":48,"text":"Weapon"},{"min":49,"max":52,"text":"Darkness"},{"min":53,"max":56,"text":"Decay"},{"min":57,"max":60,"text":"Path"},{"min":61,"max":64,"text":"Stone"},{"min":65,"max":68,"text":"Terrain"},{"min":69,"max":72,"text":"Poison"},{"min":73,"max":76,"text":"Barrier"},{"min":77,"max":80,"text":"Overhead"},{"min":81,"max":84,"text":"Magic"},{"min":85,"max":88,"text":"Toxin"},{"min":89,"max":92,"text":"Earth"},{"min":93,"max":96,"text":"Light"},{"min":97,"max":100,"text":"Denizen"}]};
+
+    const log = document.getElementById('log');
+    const grid = document.getElementById('grid');
+    let first = true;
+
+    function logCard(spec) {
+      if (first) { log.innerHTML = ''; first = false; }
+      appendCard(log, spec);
+    }
+
+    function rollSingle(table, label, withRoll) {
+      const { roll, text } = rollTable(table);
+      logCard({ total: text, detailText: withRoll ? 'rolled ' + roll : null });
+      reportToNative(label + ': ' + text, text.slice(0, 4));
+    }
+
+    function findRow(rows, n) {
+      return rows.find((r) => n >= r.min && n <= r.max);
+    }
+
+    // Which theme/domain the landing grid's roll buttons currently read from
+    // - set by picking (or randomly rolling) in the theme/domain sub-grids.
+    let currentThemeKey = null;
+    let currentDomainKey = null;
+
+    function rollFeature() {
+      const n = 1 + Math.floor(Math.random() * 100);
+      const inTheme = n <= 20;
+      const text = findRow(inTheme ? THEMES[currentThemeKey].features : DOMAINS[currentDomainKey].features, n).text;
+      const source = inTheme ? THEMES[currentThemeKey].name + ' theme' : DOMAINS[currentDomainKey].name + ' domain';
+      logCard({ total: text, detailText: 'rolled ' + n + ' • ' + source });
+      reportToNative('Feature: ' + text, text.slice(0, 4));
+    }
+
+    function rollDanger() {
+      const n = 1 + Math.floor(Math.random() * 100);
+      let text, source;
+      if (n <= 30) { text = findRow(THEMES[currentThemeKey].dangers, n).text; source = THEMES[currentThemeKey].name + ' theme'; }
+      else if (n <= 45) { text = findRow(DOMAINS[currentDomainKey].dangers, n).text; source = DOMAINS[currentDomainKey].name + ' domain'; }
+      else { text = findRow(REVEAL_DANGER.rows, n).text; source = 'general danger'; }
+      logCard({ total: text, detailText: 'rolled ' + n + ' • ' + source });
+      reportToNative('Danger: ' + text, text.slice(0, 4));
+    }
+
+    // ---- navigation: landing grid <-> theme picker <-> domain picker ----
+
+    const backBar = document.getElementById('backBar');
+    const backBtn = document.getElementById('backBtn');
+    const backLabel = document.getElementById('backLabel');
+
+    function navTile(label, handler) {
+      return { label: label + ' ›', handler };
+    }
+
+    function renderLanding() {
+      backBar.hidden = true;
+      grid.innerHTML = '';
+      const tiles = [
+        navTile('Theme: ' + THEMES[currentThemeKey].name, renderThemePicker),
+        navTile('Domain: ' + DOMAINS[currentDomainKey].name, renderDomainPicker),
+        { label: 'Roll Feature', handler: rollFeature },
+        { label: 'Roll Danger', handler: rollDanger },
+        { label: 'Aspect', handler: () => rollSingle(ASPECT_TABLE, 'Aspect', true) },
+        { label: 'Focus', handler: () => rollSingle(FOCUS_TABLE, 'Focus', true) },
+        { label: 'Trap Event', handler: () => rollSingle(TRAP_EVENT_TABLE, 'Trap Event', true) },
+        { label: 'Trap Component', handler: () => rollSingle(TRAP_COMPONENT_TABLE, 'Trap Component', true) },
+      ];
+      initOracleGrid(grid, tiles);
+    }
+
+    function pickTheme(key, roll) {
+      currentThemeKey = key;
+      logCard({ total: THEMES[key].name, label: 'Theme', detailText: roll != null ? 'rolled ' + roll : 'picked' });
+      reportToNative('Theme: ' + THEMES[key].name, THEMES[key].name.slice(0, 4));
+      renderLanding();
+    }
+
+    function pickDomain(key, roll) {
+      currentDomainKey = key;
+      logCard({ total: DOMAINS[key].name, label: 'Domain', detailText: roll != null ? 'rolled ' + roll : 'picked' });
+      reportToNative('Domain: ' + DOMAINS[key].name, DOMAINS[key].name.slice(0, 4));
+      renderLanding();
+    }
+
+    function renderThemePicker() {
+      backLabel.textContent = 'Site';
+      backBar.hidden = false;
+      grid.innerHTML = '';
+      const tiles = [
+        { label: '🎲 Random', handler: () => { const { roll, text } = rollTable(THEME_PICK); pickTheme(text, roll); } },
+      ];
+      Object.keys(THEMES).forEach((key) => {
+        tiles.push({ label: THEMES[key].name, handler: () => pickTheme(key) });
+      });
+      initOracleGrid(grid, tiles);
+    }
+
+    function renderDomainPicker() {
+      backLabel.textContent = 'Site';
+      backBar.hidden = false;
+      grid.innerHTML = '';
+      const tiles = [
+        { label: '🎲 Random', handler: () => { const { roll, text } = rollTable(DOMAIN_PICK); pickDomain(text, roll); } },
+      ];
+      Object.keys(DOMAINS).forEach((key) => {
+        tiles.push({ label: DOMAINS[key].name, handler: () => pickDomain(key) });
+      });
+      initOracleGrid(grid, tiles);
+    }
+
+    backBtn.addEventListener('click', renderLanding);
+
+    // Start with a random theme and domain already rolled, same as the
+    // book's default "randomly select a theme and domain" - Feature/Danger
+    // work immediately instead of needing two picks first.
+    currentThemeKey = rollTable(THEME_PICK).text;
+    currentDomainKey = rollTable(DOMAIN_PICK).text;
+    renderLanding();
+    log.innerHTML = '<div class="empty">Tap Theme or Domain to change them, or roll a Feature or Danger for the current site.</div>';
+  </script>
+</body>
+</html>

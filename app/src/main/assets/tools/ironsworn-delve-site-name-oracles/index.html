@@ -1,0 +1,106 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ironsworn Delve Site Name Oracles</title>
+<script src="../shared/bubble.js"></script>
+<link rel="stylesheet" href="../shared/theme.css">
+<style>
+  #grid { grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); }
+</style>
+</head>
+<body>
+  <noscript>
+    <div style="padding:16px;font-family:system-ui,sans-serif;">
+      <h2>Ironsworn Delve Site Name Oracles</h2>
+      <p>This tool needs JavaScript, which is currently disabled in this WebView.</p>
+      <p>That shouldn't happen - the app enables it itself. Please report this bug.</p>
+    </div>
+  </noscript>
+
+  <div id="log"></div>
+  <div id="grid"></div>
+
+  <script src="../shared/oracle.js"></script>
+  <script>
+    // Ironsworn: Delve oracles, by Shawn Tomkin - CC BY 4.0
+    // (https://creativecommons.org/licenses/by/4.0). Sourced from Datasworn
+    // (https://github.com/rsek/datasworn). Rows are {min, max, text}; roll
+    // 1d100 and find the row whose range contains it.
+
+    // Place: which domain a name's "place word" is drawn from. Text is the
+    // PLACE_WORDS key below (not the display name), same trick as the Site
+    // Oracles tool's theme/domain pickers.
+    const PLACE_PICK = {"name":"Place","dice":"1d100","rows":[{"min":1,"max":6,"text":"barrow"},{"min":7,"max":18,"text":"cavern"},{"min":19,"max":28,"text":"frozen_cavern"},{"min":29,"max":32,"text":"icereach"},{"min":33,"max":38,"text":"mine"},{"min":39,"max":48,"text":"pass"},{"min":49,"max":58,"text":"ruin"},{"min":59,"max":68,"text":"sea_cave"},{"min":69,"max":78,"text":"shadowfen"},{"min":79,"max":83,"text":"stronghold"},{"min":84,"max":95,"text":"tanglewood"},{"min":96,"max":100,"text":"underkeep"}]};
+
+    // Each domain's own word for "this kind of place" - e.g. a Barrow site
+    // might be called a Sepulcher, Mound, Grave, Tomb, Crypt, or Barrow.
+    const PLACE_WORDS = {"barrow":{"name":"Barrow","dice":"1d100","rows":[{"min":1,"max":16,"text":"Sepulcher"},{"min":50,"max":66,"text":"Mound"},{"min":17,"max":32,"text":"Grave"},{"min":67,"max":83,"text":"Tomb"},{"min":33,"max":49,"text":"Crypt"},{"min":84,"max":100,"text":"Barrow"}]},"cavern":{"name":"Cavern","dice":"1d100","rows":[{"min":1,"max":10,"text":"Abyss"},{"min":11,"max":20,"text":"Caverns"},{"min":21,"max":30,"text":"Caves"},{"min":31,"max":40,"text":"Chasm"},{"min":41,"max":50,"text":"Depths"},{"min":51,"max":60,"text":"Hollow"},{"min":61,"max":70,"text":"Lair"},{"min":71,"max":80,"text":"Rift"},{"min":81,"max":90,"text":"Tunnels"},{"min":91,"max":100,"text":"Warren"}]},"frozen_cavern":{"name":"Frozen Cavern","dice":"1d100","rows":[{"min":1,"max":10,"text":"Abyss"},{"min":11,"max":20,"text":"Caverns"},{"min":21,"max":30,"text":"Caves"},{"min":31,"max":40,"text":"Chasm"},{"min":41,"max":50,"text":"Depths"},{"min":51,"max":60,"text":"Hollow"},{"min":61,"max":70,"text":"Lair"},{"min":71,"max":80,"text":"Rift"},{"min":81,"max":90,"text":"Tunnels"},{"min":91,"max":100,"text":"Warren"}]},"icereach":{"name":"Icereach","dice":"1d100","rows":[{"min":1,"max":16,"text":"Icemark"},{"min":17,"max":32,"text":"Wintertide"},{"min":33,"max":49,"text":"Reach"},{"min":50,"max":66,"text":"Waste"},{"min":67,"max":83,"text":"Expanse"},{"min":84,"max":100,"text":"Barrens"}]},"mine":{"name":"Mine","dice":"1d100","rows":[{"min":1,"max":16,"text":"Lode"},{"min":17,"max":32,"text":"Dig"},{"min":33,"max":49,"text":"Forge"},{"min":50,"max":66,"text":"Mine"},{"min":67,"max":83,"text":"Tunnels"},{"min":84,"max":100,"text":"Cut"}]},"pass":{"name":"Pass","dice":"1d100","rows":[{"min":1,"max":10,"text":"Cliffs"},{"min":11,"max":20,"text":"Crag"},{"min":21,"max":30,"text":"Cut"},{"min":31,"max":40,"text":"Gap"},{"min":41,"max":50,"text":"Gorge"},{"min":51,"max":60,"text":"Heights"},{"min":61,"max":70,"text":"Highlands"},{"min":71,"max":80,"text":"Pass"},{"min":81,"max":90,"text":"Reach"},{"min":91,"max":100,"text":"Ridge"}]},"ruin":{"name":"Ruin","dice":"1d100","rows":[{"min":1,"max":10,"text":"Citadel"},{"min":11,"max":20,"text":"Enclave"},{"min":21,"max":30,"text":"Fortress"},{"min":31,"max":40,"text":"Hall"},{"min":41,"max":50,"text":"Keep"},{"min":51,"max":60,"text":"Sanctuary"},{"min":61,"max":70,"text":"Sanctum"},{"min":71,"max":80,"text":"Spire"},{"min":81,"max":90,"text":"Temple"},{"min":91,"max":100,"text":"Tower"}]},"sea_cave":{"name":"Sea Cave","dice":"1d100","rows":[{"min":1,"max":16,"text":"Caves"},{"min":17,"max":32,"text":"Channel"},{"min":33,"max":49,"text":"Cove"},{"min":50,"max":66,"text":"Hollow"},{"min":67,"max":83,"text":"Pools"},{"min":84,"max":100,"text":"Gouge"}]},"shadowfen":{"name":"Shadowfen","dice":"1d100","rows":[{"min":1,"max":10,"text":"Bog"},{"min":11,"max":20,"text":"Fen"},{"min":21,"max":30,"text":"Lowland"},{"min":31,"max":40,"text":"Marsh"},{"min":41,"max":50,"text":"Mire"},{"min":51,"max":60,"text":"Morass"},{"min":61,"max":70,"text":"Quagmire"},{"min":71,"max":80,"text":"Floodlands"},{"min":81,"max":90,"text":"Slough"},{"min":91,"max":100,"text":"Wetlands"}]},"stronghold":{"name":"Stronghold","dice":"1d100","rows":[{"min":1,"max":10,"text":"Bastion"},{"min":11,"max":20,"text":"Citadel"},{"min":21,"max":30,"text":"Fortress"},{"min":31,"max":40,"text":"Garrison"},{"min":41,"max":50,"text":"Haven"},{"min":51,"max":60,"text":"Keep"},{"min":61,"max":70,"text":"Outpost"},{"min":71,"max":80,"text":"Refuge"},{"min":81,"max":90,"text":"Sanctuary"},{"min":91,"max":100,"text":"Watch"}]},"tanglewood":{"name":"Tanglewood","dice":"1d100","rows":[{"min":1,"max":11,"text":"Weald"},{"min":12,"max":23,"text":"Tangle"},{"min":24,"max":35,"text":"Bramble"},{"min":36,"max":48,"text":"Briar"},{"min":49,"max":61,"text":"Thicket"},{"min":62,"max":74,"text":"Forest"},{"min":75,"max":87,"text":"Wilds"},{"min":88,"max":100,"text":"Wood"}]},"underkeep":{"name":"Underkeep","dice":"1d100","rows":[{"min":1,"max":10,"text":"Catacomb"},{"min":11,"max":20,"text":"Chambers"},{"min":21,"max":30,"text":"Den"},{"min":31,"max":40,"text":"Hall"},{"min":41,"max":50,"text":"Labyrinth"},{"min":51,"max":60,"text":"Maze"},{"min":61,"max":70,"text":"Pit"},{"min":71,"max":80,"text":"Sanctum"},{"min":81,"max":90,"text":"Underkeep"},{"min":91,"max":100,"text":"Vault"}]}};
+
+    const DESCRIPTION_TABLE = {"name":"Description","dice":"1d100","rows":[{"min":1,"max":2,"text":"Deep"},{"min":3,"max":4,"text":"Tainted"},{"min":5,"max":6,"text":"Grey"},{"min":7,"max":8,"text":"Forgotten"},{"min":9,"max":10,"text":"Flooded"},{"min":11,"max":12,"text":"Forbidden"},{"min":13,"max":14,"text":"Barren"},{"min":15,"max":16,"text":"Lost"},{"min":17,"max":18,"text":"Cursed"},{"min":19,"max":20,"text":"Fell"},{"min":21,"max":22,"text":"Sunken"},{"min":23,"max":24,"text":"Nightmare"},{"min":25,"max":26,"text":"Infernal"},{"min":27,"max":28,"text":"Dark"},{"min":29,"max":30,"text":"Bloodstained"},{"min":31,"max":32,"text":"Haunted"},{"min":33,"max":34,"text":"White"},{"min":35,"max":36,"text":"Shrouded"},{"min":37,"max":38,"text":"Wasted"},{"min":39,"max":40,"text":"Grim"},{"min":41,"max":42,"text":"Endless"},{"min":43,"max":44,"text":"Crumbling"},{"min":45,"max":46,"text":"Undying"},{"min":47,"max":48,"text":"Bloodied"},{"min":49,"max":50,"text":"Forsaken"},{"min":51,"max":52,"text":"Silent"},{"min":53,"max":54,"text":"Blighted"},{"min":55,"max":56,"text":"Iron"},{"min":57,"max":58,"text":"Frozen"},{"min":59,"max":60,"text":"Abyssal"},{"min":61,"max":62,"text":"Crimson"},{"min":63,"max":64,"text":"Silver"},{"min":65,"max":66,"text":"Desecrated"},{"min":67,"max":68,"text":"Ashen"},{"min":69,"max":70,"text":"Elder"},{"min":71,"max":72,"text":"Scorched"},{"min":73,"max":74,"text":"Unknown"},{"min":75,"max":76,"text":"Scarred"},{"min":77,"max":78,"text":"Broken"},{"min":79,"max":80,"text":"Chaotic"},{"min":81,"max":82,"text":"Black"},{"min":83,"max":84,"text":"Hidden"},{"min":85,"max":86,"text":"Sundered"},{"min":87,"max":88,"text":"Shattered"},{"min":89,"max":90,"text":"Dreaded"},{"min":91,"max":92,"text":"Secret"},{"min":93,"max":94,"text":"High"},{"min":95,"max":96,"text":"Sacred"},{"min":97,"max":98,"text":"Fallen"},{"min":99,"max":100,"text":"Ruined"}]};
+    const DETAIL_TABLE = {"name":"Detail","dice":"1d100","rows":[{"min":1,"max":2,"text":"Blight"},{"min":3,"max":4,"text":"Strife"},{"min":5,"max":6,"text":"Nightfall"},{"min":7,"max":8,"text":"Fury"},{"min":9,"max":10,"text":"Terror"},{"min":11,"max":12,"text":"Truth"},{"min":13,"max":14,"text":"Spring"},{"min":15,"max":16,"text":"Sanctuary"},{"min":17,"max":18,"text":"Bone"},{"min":19,"max":20,"text":"Specters"},{"min":21,"max":22,"text":"Daybreak"},{"min":23,"max":24,"text":"Doom"},{"min":25,"max":26,"text":"Treachery"},{"min":27,"max":28,"text":"Blood"},{"min":29,"max":30,"text":"War"},{"min":31,"max":32,"text":"Torment"},{"min":33,"max":34,"text":"Iron"},{"min":35,"max":36,"text":"Silence"},{"min":37,"max":38,"text":"Mist"},{"min":39,"max":40,"text":"Isolation"},{"min":41,"max":42,"text":"Runes"},{"min":43,"max":44,"text":"Rot"},{"min":45,"max":46,"text":"Corruption"},{"min":47,"max":48,"text":"Prophecy"},{"min":49,"max":50,"text":"Fate"},{"min":51,"max":52,"text":"Twilight"},{"min":53,"max":54,"text":"Power"},{"min":55,"max":56,"text":"Darkness"},{"min":57,"max":58,"text":"Gloom"},{"min":59,"max":60,"text":"Storms"},{"min":61,"max":62,"text":"Hope"},{"min":63,"max":64,"text":"Lament"},{"min":65,"max":66,"text":"Frost"},{"min":67,"max":68,"text":"Souls"},{"min":69,"max":70,"text":"Winter"},{"min":71,"max":72,"text":"Sadness"},{"min":73,"max":74,"text":"Desolation"},{"min":75,"max":76,"text":"Bane"},{"min":77,"max":78,"text":"Lies"},{"min":79,"max":80,"text":"Ash"},{"min":81,"max":82,"text":"Banishment"},{"min":83,"max":84,"text":"Shadow"},{"min":85,"max":86,"text":"Madness"},{"min":87,"max":88,"text":"Stone"},{"min":89,"max":90,"text":"Secrets"},{"min":91,"max":92,"text":"Despair"},{"min":93,"max":94,"text":"Blades"},{"min":95,"max":96,"text":"Dread"},{"min":97,"max":98,"text":"Light"},{"min":99,"max":100,"text":"Wrath"}]};
+    const NAMESAKE_TABLE = {"name":"Namesake","dice":"1d100","rows":[{"min":1,"max":2,"text":"Breckon"},{"min":3,"max":4,"text":"Issara"},{"min":5,"max":6,"text":"Milenna"},{"min":7,"max":8,"text":"Thorval"},{"min":9,"max":10,"text":"Khulan"},{"min":11,"max":12,"text":"Aurvang"},{"min":13,"max":14,"text":"Kalida"},{"min":15,"max":16,"text":"Keeara"},{"min":17,"max":18,"text":"Andor"},{"min":19,"max":20,"text":"Zakaria"},{"min":21,"max":22,"text":"Willa"},{"min":23,"max":24,"text":"Etana"},{"min":25,"max":26,"text":"Valgard"},{"min":27,"max":28,"text":"Kenrick"},{"min":29,"max":30,"text":"Wyland"},{"min":31,"max":32,"text":"Sidura"},{"min":33,"max":34,"text":"Svala"},{"min":35,"max":36,"text":"Kajir"},{"min":37,"max":38,"text":"Saiven"},{"min":39,"max":40,"text":"Callwen"},{"min":41,"max":42,"text":"Zhan"},{"min":43,"max":44,"text":"Solana"},{"min":45,"max":46,"text":"Ildar"},{"min":47,"max":48,"text":"Keelan"},{"min":49,"max":50,"text":"Thrain"},{"min":51,"max":52,"text":"Kynan"},{"min":53,"max":54,"text":"Jadina"},{"min":55,"max":56,"text":"Radek"},{"min":57,"max":58,"text":"Wulan"},{"min":59,"max":60,"text":"Garion"},{"min":61,"max":62,"text":"Eysa"},{"min":63,"max":64,"text":"Kolor"},{"min":65,"max":66,"text":"Katarra"},{"min":67,"max":68,"text":"Dain"},{"min":69,"max":70,"text":"Farina"},{"min":71,"max":72,"text":"Yala"},{"min":73,"max":74,"text":"Kodroth"},{"min":75,"max":76,"text":"Morien"},{"min":77,"max":78,"text":"Akida"},{"min":79,"max":80,"text":"Haldorr"},{"min":81,"max":82,"text":"Nyrad"},{"min":83,"max":84,"text":"Edda"},{"min":85,"max":86,"text":"Jorund"},{"min":87,"max":88,"text":"Morraine"},{"min":89,"max":90,"text":"Lindar"},{"min":91,"max":92,"text":"Sithra"},{"min":93,"max":94,"text":"Torgan"},{"min":95,"max":96,"text":"Arnorr"},{"min":97,"max":98,"text":"Thyri"},{"min":99,"max":100,"text":"Erisia"}]};
+
+    const log = document.getElementById('log');
+    const grid = document.getElementById('grid');
+    let first = true;
+
+    function logCard(spec) {
+      if (first) { log.innerHTML = ''; first = false; }
+      appendCard(log, spec);
+    }
+
+    function rollSingle(table, label, withRoll) {
+      const { roll, text } = rollTable(table);
+      logCard({ total: text, detailText: withRoll ? 'rolled ' + roll : null });
+      reportToNative(label + ': ' + text, text.slice(0, 4));
+    }
+
+    function rollPlace() {
+      const domainKey = rollTable(PLACE_PICK).text;
+      const { roll, text } = rollTable(PLACE_WORDS[domainKey]);
+      logCard({ total: text, detailText: 'rolled ' + roll + ' • ' + PLACE_WORDS[domainKey].name + ' domain' });
+      reportToNative('Place: ' + text, text.slice(0, 4));
+    }
+
+    // Full Site Name (Datasworn: delve/oracles/site_name/format) picks one of
+    // seven patterns that combine Place (a domain's own word), Description,
+    // Detail, and Namesake - reproduced by hand since it composes several
+    // table rolls into one name, same as Ironsworn's Settlement Name and
+    // Starforged's Faction Name combos.
+    function rollSiteName() {
+      const pattern = 1 + Math.floor(Math.random() * 100);
+      const place = () => rollTable(PLACE_WORDS[rollTable(PLACE_PICK).text]).text;
+      const description = () => rollTable(DESCRIPTION_TABLE).text;
+      const detail = () => rollTable(DETAIL_TABLE).text;
+      const namesake = () => rollTable(NAMESAKE_TABLE).text;
+      let name;
+      if (pattern <= 25) name = description() + ' ' + place();
+      else if (pattern <= 50) name = place() + ' of ' + detail();
+      else if (pattern <= 70) name = place() + ' of ' + description() + ' ' + detail();
+      else if (pattern <= 80) name = place() + ' of ' + namesake() + '’s ' + detail();
+      else if (pattern <= 85) name = namesake() + '’s ' + place();
+      else if (pattern <= 95) name = description() + ' ' + place() + ' of ' + namesake();
+      else name = place() + ' of ' + namesake();
+      logCard({ total: name });
+      reportToNative('Site Name: ' + name, name.slice(0, 4));
+    }
+
+    const ORACLE = {
+      label: 'Site Name Oracles',
+      hint: 'Roll a Full Site Name, or a single ingredient to build your own.',
+      buildTiles: () => [
+        { label: 'Full Site Name', handler: rollSiteName },
+        { label: 'Place', handler: rollPlace },
+        { label: 'Description', handler: () => rollSingle(DESCRIPTION_TABLE, 'Description', true) },
+        { label: 'Detail', handler: () => rollSingle(DETAIL_TABLE, 'Detail', true) },
+        { label: 'Namesake', handler: () => rollSingle(NAMESAKE_TABLE, 'Namesake', true) },
+      ],
+    };
+
+    log.innerHTML = '<div class="empty">' + ORACLE.hint + '</div>';
+    initOracleGrid(grid, ORACLE.buildTiles());
+  </script>
+</body>
+</html>

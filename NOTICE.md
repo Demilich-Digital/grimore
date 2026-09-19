@@ -33,6 +33,22 @@ never actually rollable - e.g. a Lifeless planet's life-dependent Peril
 entries - are dropped rather than kept as dead weight); the surrounding
 page code is original.
 
+## Ironsworn: Delve oracle content
+
+The Delve oracle tools (`app/src/main/assets/tools/ironsworn-delve-*-oracles/`
+- Site (Site Nature theme/domain picker plus Feature, Danger, Aspect/Focus,
+and Trap), Site Name, Character, Move, Monstrosity, and Threat, each
+combining a Datasworn oracle collection into one tool with a picker or a
+two-tap navigation grid) embed oracle table text from *Ironsworn: Delve*, by
+Shawn Tomkin, licensed under **CC BY 4.0**
+(https://creativecommons.org/licenses/by/4.0). Sourced from
+[Datasworn](https://github.com/rsek/datasworn) - the entire Delve ruleset
+file is CC BY 4.0. Table rows are reproduced verbatim; the Site tool's
+Feature/Danger rolls and the Site Name tool's Full Site Name composer
+reimplement Delve's own table-branching and name-template logic by hand (the
+same approach already used for Ironsworn's Settlement Name and Starforged's
+Faction Name); the surrounding page code is original.
+
 ## Bundled web fonts
 
 The Dice Bot and Custom Dice tools (`app/src/main/assets/tools/{dice,
