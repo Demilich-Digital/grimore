@@ -58,6 +58,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -83,9 +84,11 @@ import androidx.webkit.WebViewAssetLoader
 import digital.demilich.grimoire.MainActivity
 import digital.demilich.grimoire.R
 import digital.demilich.grimoire.bridge.GrimoireBridge
+import digital.demilich.grimoire.data.EnabledPacks
 import digital.demilich.grimoire.data.GrimoireTool
 import digital.demilich.grimoire.data.PanelPosition
 import digital.demilich.grimoire.data.RecentTools
+import digital.demilich.grimoire.data.ToolPack
 import digital.demilich.grimoire.ui.theme.GrimoireTheme
 import kotlin.math.PI
 import kotlin.math.cos
@@ -1225,7 +1228,15 @@ class OverlayService : Service() {
     // weren't shown per-row there, only used as filter data).
     @Composable
     private fun ToolList(onSelectTool: (GrimoireTool) -> Unit) {
-        val allTools = remember { GrimoireTool.entries.filter { !it.unlisted } }
+        // Live Flow, not a one-shot load like recentTools/savedPanelPosition
+        // above - MainActivity's pack toggles can change this while the
+        // overlay (and this composable) stays alive, so it needs to react
+        // rather than only reflect whatever was true when the panel opened.
+        val enabledPacks by EnabledPacks.flow(this@OverlayService)
+            .collectAsState(initial = ToolPack.entries.filter { it.defaultEnabled }.toSet())
+        val allTools = remember(enabledPacks) {
+            GrimoireTool.entries.filter { !it.unlisted && it.pack in enabledPacks }
+        }
         val allTags = remember(allTools) { allTools.flatMap { it.tags }.distinct().sorted() }
 
         var query by remember { mutableStateOf("") }
@@ -1274,7 +1285,11 @@ class OverlayService : Service() {
                 if (visibleTools.isEmpty()) {
                     item {
                         Text(
-                            "No tools match.",
+                            if (allTools.isEmpty()) {
+                                "No packs enabled - turn one on from the main app."
+                            } else {
+                                "No tools match."
+                            },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

@@ -13,6 +13,11 @@ import digital.demilich.grimoire.R
  * filter chips; `credit` is shown on each row there too - both the list and the
  * fan-out are documented in NOTICE.md as one source of truth for licensing, but
  * this is what a user actually sees at the point of use.
+ *
+ * `pack` is different from `tags`: every tool belongs to exactly one
+ * ToolPack (a clean partition, for MainActivity's enable/disable toggle),
+ * while `tags` stay free-form and multi-valued, purely for search/filtering
+ * within whichever tools are already enabled.
  */
 enum class GrimoireTool(
     val id: String,
@@ -21,6 +26,7 @@ enum class GrimoireTool(
     val description: String,
     val tags: List<String>,
     val iconRes: Int,
+    val pack: ToolPack,
     // Attribution for where a tool's content comes from - "Demilich Digital"
     // for original in-house tools, or the actual source/license for ported
     // content (see NOTICE.md for the full license text this summarizes).
@@ -37,6 +43,7 @@ enum class GrimoireTool(
         description = "Roll tabletop dice notation - 2d6+3, advantage/disadvantage, drop-lowest, and more.",
         tags = listOf("random"),
         iconRes = R.drawable.ic_dice,
+        pack = ToolPack.CORE,
         credit = "Demilich Digital",
     ),
     CALCULATOR(
@@ -46,6 +53,7 @@ enum class GrimoireTool(
         description = "A simple calculator keypad for quick arithmetic.",
         tags = listOf("utility", "math"),
         iconRes = R.drawable.ic_calculator,
+        pack = ToolPack.CORE,
         credit = "Demilich Digital",
     ),
     DEMO(
@@ -55,6 +63,7 @@ enum class GrimoireTool(
         description = "A quick walkthrough of collapsing, moving, and dismissing the overlay.",
         tags = listOf("help"),
         iconRes = R.drawable.ic_demo,
+        pack = ToolPack.CORE,
         credit = "Demilich Digital",
         unlisted = true,
     ),
@@ -65,6 +74,7 @@ enum class GrimoireTool(
         description = "Ask the Oracle, Plot & Twist, Name Generator, and Settlement & Place - pick one from the menu, from Ironsworn.",
         tags = listOf("oracle", "ironsworn", "random", "yes-no", "prompts", "names", "worldbuilding"),
         iconRes = R.drawable.ic_oracle,
+        pack = ToolPack.IRONSWORN,
         credit = "Ironsworn by Shawn Tomkin • CC BY 4.0",
     ),
     CUSTOM_DICE(
@@ -74,6 +84,7 @@ enum class GrimoireTool(
         description = "Save your own dice - d13, d3, whatever your game needs - and build rolls with them.",
         tags = listOf("random", "custom"),
         iconRes = R.drawable.ic_custom_dice,
+        pack = ToolPack.CORE,
         credit = "Demilich Digital",
     ),
     ACTION_ROLL(
@@ -83,6 +94,7 @@ enum class GrimoireTool(
         description = "Dice roller for Ironsworn/Starforged (1d6 + modifier vs two d10 challenge dice, with match detection) or Apocalypse World (2d6 + modifier, 10+/7-9/6-) - tap your modifier (-2 to +4) and roll.",
         tags = listOf("dice", "random", "ironsworn", "starforged", "apocalypse-world", "pbta", "moves"),
         iconRes = R.drawable.ic_action_roll,
+        pack = ToolPack.CORE,
         credit = "Demilich Digital",
     ),
     STARFORGED_CORE_ORACLES(
@@ -92,6 +104,7 @@ enum class GrimoireTool(
         description = "Ask the Oracle and the Core Oracles (Action, Theme, Descriptor, Focus) - pick one from the menu, from Ironsworn: Starforged.",
         tags = listOf("oracle", "starforged", "ironsworn", "random", "yes-no", "prompts"),
         iconRes = R.drawable.ic_oracle,
+        pack = ToolPack.STARFORGED,
         credit = "Ironsworn: Starforged by Shawn Tomkin • CC BY 4.0",
     ),
     STARFORGED_MOVE_ORACLES(
@@ -101,6 +114,7 @@ enum class GrimoireTool(
         description = "Begin a Session, Make a Discovery, Pay the Price, and the rest of the move-triggered oracles from Ironsworn: Starforged.",
         tags = listOf("oracle", "starforged", "ironsworn", "random", "moves"),
         iconRes = R.drawable.ic_oracle,
+        pack = ToolPack.STARFORGED,
         credit = "Ironsworn: Starforged by Shawn Tomkin • CC BY 4.0",
     ),
     STARFORGED_MISC_ORACLES(
@@ -110,6 +124,7 @@ enum class GrimoireTool(
         description = "Story Complication, Story Clue, Anomaly Effect, and Combat Action - grab-bag GM oracles from Ironsworn: Starforged.",
         tags = listOf("oracle", "starforged", "ironsworn", "random", "prompts"),
         iconRes = R.drawable.ic_oracle,
+        pack = ToolPack.STARFORGED,
         credit = "Ironsworn: Starforged by Shawn Tomkin • CC BY 4.0",
     ),
     STARFORGED_CHARACTER_ORACLES(
@@ -119,6 +134,7 @@ enum class GrimoireTool(
         description = "Character, Name, and Campaign Launch oracles - pick one from the menu, from Ironsworn: Starforged.",
         tags = listOf("oracle", "starforged", "ironsworn", "random", "names", "worldbuilding"),
         iconRes = R.drawable.ic_oracle,
+        pack = ToolPack.STARFORGED,
         credit = "Ironsworn: Starforged by Shawn Tomkin • CC BY 4.0",
     ),
     STARFORGED_CREATURE_ORACLES(
@@ -128,6 +144,7 @@ enum class GrimoireTool(
         description = "Creature and Basic Form oracles - pick one from the menu, from Ironsworn: Starforged.",
         tags = listOf("oracle", "starforged", "ironsworn", "random", "worldbuilding"),
         iconRes = R.drawable.ic_oracle,
+        pack = ToolPack.STARFORGED,
         credit = "Ironsworn: Starforged by Shawn Tomkin • CC BY 4.0",
     ),
     STARFORGED_FACTION_ORACLES(
@@ -137,6 +154,7 @@ enum class GrimoireTool(
         description = "Faction and Faction Name oracles - pick one from the menu, from Ironsworn: Starforged.",
         tags = listOf("oracle", "starforged", "ironsworn", "random", "names", "worldbuilding"),
         iconRes = R.drawable.ic_oracle,
+        pack = ToolPack.STARFORGED,
         credit = "Ironsworn: Starforged by Shawn Tomkin • CC BY 4.0",
     ),
     STARFORGED_SETTLEMENT_ORACLES(
@@ -146,6 +164,7 @@ enum class GrimoireTool(
         description = "Settlement and Population oracles - pick one from the menu, from Ironsworn: Starforged.",
         tags = listOf("oracle", "starforged", "ironsworn", "random", "names", "worldbuilding"),
         iconRes = R.drawable.ic_oracle,
+        pack = ToolPack.STARFORGED,
         credit = "Ironsworn: Starforged by Shawn Tomkin • CC BY 4.0",
     ),
     STARFORGED_STARSHIP_ORACLES(
@@ -155,6 +174,7 @@ enum class GrimoireTool(
         description = "Starship and Mission oracles - pick one from the menu, from Ironsworn: Starforged.",
         tags = listOf("oracle", "starforged", "ironsworn", "random", "names", "worldbuilding"),
         iconRes = R.drawable.ic_oracle,
+        pack = ToolPack.STARFORGED,
         credit = "Ironsworn: Starforged by Shawn Tomkin • CC BY 4.0",
     ),
     STARFORGED_SPACE_ORACLES(
@@ -164,6 +184,7 @@ enum class GrimoireTool(
         description = "Space Encounter, Sighting, and Sector Name oracles - pick one from the menu, from Ironsworn: Starforged.",
         tags = listOf("oracle", "starforged", "ironsworn", "random", "names", "worldbuilding"),
         iconRes = R.drawable.ic_oracle,
+        pack = ToolPack.STARFORGED,
         credit = "Ironsworn: Starforged by Shawn Tomkin • CC BY 4.0",
     ),
     STARFORGED_LOCATION_THEME_ORACLES(
@@ -173,6 +194,7 @@ enum class GrimoireTool(
         description = "Theme Type plus all eight location themes (Chaotic, Fortified, Haunted, Infested, Inhabited, Mechanical, Ruined, Sacred) - pick one from the menu, from Ironsworn: Starforged.",
         tags = listOf("oracle", "starforged", "ironsworn", "random", "worldbuilding"),
         iconRes = R.drawable.ic_oracle,
+        pack = ToolPack.STARFORGED,
         credit = "Ironsworn: Starforged by Shawn Tomkin • CC BY 4.0",
     ),
     STARFORGED_DERELICT_ORACLES(
@@ -182,6 +204,7 @@ enum class GrimoireTool(
         description = "Derelict, all eight interior zones, and type/zone-by-location oracles - pick one from the menu, from Ironsworn: Starforged.",
         tags = listOf("oracle", "starforged", "ironsworn", "random", "worldbuilding"),
         iconRes = R.drawable.ic_oracle,
+        pack = ToolPack.STARFORGED,
         credit = "Ironsworn: Starforged by Shawn Tomkin • CC BY 4.0",
     ),
     STARFORGED_PRECURSOR_VAULT_ORACLES(
@@ -191,6 +214,7 @@ enum class GrimoireTool(
         description = "Vault, Interior, and Sanctum oracles - pick one from the menu, from Ironsworn: Starforged.",
         tags = listOf("oracle", "starforged", "ironsworn", "random", "worldbuilding"),
         iconRes = R.drawable.ic_oracle,
+        pack = ToolPack.STARFORGED,
         credit = "Ironsworn: Starforged by Shawn Tomkin • CC BY 4.0",
     ),
     STARFORGED_PLANET_ORACLES(
@@ -200,6 +224,7 @@ enum class GrimoireTool(
         description = "Planetary Class, all eleven planet types, and Planetside Peril/Opportunity - tap a type to roll its tables, from Ironsworn: Starforged.",
         tags = listOf("oracle", "starforged", "ironsworn", "random", "worldbuilding"),
         iconRes = R.drawable.ic_oracle,
+        pack = ToolPack.STARFORGED,
         credit = "Ironsworn: Starforged by Shawn Tomkin • CC BY 4.0",
     ),
     IRONSWORN_DELVE_SITE_ORACLES(
@@ -209,6 +234,7 @@ enum class GrimoireTool(
         description = "Pick or roll a Site Theme and Domain, then roll Feature, Danger, Aspect/Focus, or a Trap - build a dungeon one room at a time, from Ironsworn: Delve.",
         tags = listOf("oracle", "delve", "ironsworn", "random", "worldbuilding", "dungeon"),
         iconRes = R.drawable.ic_oracle,
+        pack = ToolPack.DELVE,
         credit = "Ironsworn: Delve by Shawn Tomkin • CC BY 4.0",
     ),
     IRONSWORN_DELVE_SITE_NAME_ORACLES(
@@ -218,6 +244,7 @@ enum class GrimoireTool(
         description = "Full Site Name, Place, Description, Detail, and Namesake - pick one from the menu, from Ironsworn: Delve.",
         tags = listOf("oracle", "delve", "ironsworn", "random", "names", "worldbuilding"),
         iconRes = R.drawable.ic_oracle,
+        pack = ToolPack.DELVE,
         credit = "Ironsworn: Delve by Shawn Tomkin • CC BY 4.0",
     ),
     IRONSWORN_DELVE_CHARACTER_ORACLES(
@@ -227,6 +254,7 @@ enum class GrimoireTool(
         description = "Activity, Disposition, and Combat Event (Method, Target) - sketch a denizen or a beat in a fight, from Ironsworn: Delve.",
         tags = listOf("oracle", "delve", "ironsworn", "random", "worldbuilding"),
         iconRes = R.drawable.ic_oracle,
+        pack = ToolPack.DELVE,
         credit = "Ironsworn: Delve by Shawn Tomkin • CC BY 4.0",
     ),
     IRONSWORN_DELVE_MOVE_ORACLES(
@@ -236,6 +264,7 @@ enum class GrimoireTool(
         description = "Delve the Depths (Edge, Shadow, Wits), Find an Opportunity, Advance a Threat, and Reveal a Danger (alternate) - roll when a move calls for one, from Ironsworn: Delve.",
         tags = listOf("oracle", "delve", "ironsworn", "random", "moves"),
         iconRes = R.drawable.ic_oracle,
+        pack = ToolPack.DELVE,
         credit = "Ironsworn: Delve by Shawn Tomkin • CC BY 4.0",
     ),
     IRONSWORN_DELVE_MONSTROSITY_ORACLES(
@@ -245,6 +274,7 @@ enum class GrimoireTool(
         description = "Size, Primary Form, Characteristics, and Abilities - roll to build a monstrosity, from Ironsworn: Delve.",
         tags = listOf("oracle", "delve", "ironsworn", "random", "worldbuilding"),
         iconRes = R.drawable.ic_oracle,
+        pack = ToolPack.DELVE,
         credit = "Ironsworn: Delve by Shawn Tomkin • CC BY 4.0",
     ),
     IRONSWORN_DELVE_THREAT_ORACLES(
@@ -254,6 +284,7 @@ enum class GrimoireTool(
         description = "Category plus all nine threat types (Burgeoning Conflict, Cursed Site, Environmental Calamity, Malignant Plague, Rampaging Creature, Ravaging Horde, Scheming Leader, Power-Hungry Mystic, Zealous Cult), from Ironsworn: Delve.",
         tags = listOf("oracle", "delve", "ironsworn", "random", "worldbuilding"),
         iconRes = R.drawable.ic_oracle,
+        pack = ToolPack.DELVE,
         credit = "Ironsworn: Delve by Shawn Tomkin • CC BY 4.0",
     ),
     ;
