@@ -1,0 +1,218 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Card Deck</title>
+<script src="../shared/bubble.js"></script>
+<link rel="stylesheet" href="../shared/theme.css">
+<style>
+  /* Suit colors, scoped here rather than promoted to theme.css - no other
+     tool needs a red/black vocabulary. Black suits just take the theme's own
+     text color (already correct in both themes); red gets its own accent
+     rather than reusing --error, since a red suit isn't a bad outcome. */
+  :root {
+    --suit-red: var(--gem-d6);
+    --suit-black: var(--text);
+  }
+
+  #deckStatus {
+    flex: 0 0 auto;
+    text-align: center;
+    padding: 6px 12px 0;
+    color: var(--muted);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.78rem;
+  }
+
+  .button-row {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 8px;
+    margin: 8px 12px 2px;
+  }
+  .button-row .action-btn { flex: 1; margin: 0; }
+  .action-btn.ghost {
+    background: transparent;
+    border: 1.5px solid var(--line);
+    color: var(--text);
+  }
+  .action-btn:disabled { opacity: 0.35; pointer-events: none; }
+</style>
+</head>
+<body>
+  <noscript>
+    <div style="padding:16px;font-family:system-ui,sans-serif;">
+      <h2>Card Deck</h2>
+      <p>This tool needs JavaScript, which is currently disabled in this WebView.</p>
+      <p>That shouldn't happen - the app enables it itself. Please report this bug.</p>
+    </div>
+  </noscript>
+
+  <div id="log"></div>
+  <div id="deckStatus"></div>
+
+  <div class="button-row">
+    <button id="shuffleBtn" class="action-btn ghost" type="button" aria-label="Shuffle deck">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M3 7h4l9 10h5M3 17h4l3.5-4M16 7h5M18 4l3 3-3 3M18 20l3-3-3-3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Shuffle</span>
+    </button>
+    <button id="drawBtn" class="action-btn" type="button" aria-label="Draw a card">
+      <svg viewBox="0 0 24 24" fill="none"><rect x="5" y="3" width="14" height="18" rx="2" stroke="currentColor" stroke-width="1.6"/></svg>
+      <span>Draw</span>
+    </button>
+  </div>
+
+  <script>
+    // A standard 52-card deck (no jokers) as an oracle: draw cards one at a
+    // time off the top without replacement, same as pulling from a shuffled
+    // physical deck, until it runs out - then Shuffle both reshuffles and
+    // resets it, which also doubles as "reset on demand" at any point before
+    // that. Deck state (the shuffled order, and how many are drawn so far)
+    // persists via window.AndroidBridge/DataStore - same reasoning as Custom
+    // Dice's saved list (see its own comment): WebView localStorage isn't
+    // guaranteed to survive Android reclaiming the overlay's process, and
+    // losing your place mid-deck would be a lot more annoying to notice than
+    // losing a saved die.
+    const STORAGE_KEY = 'bubbletools.cardDeck.state';
+    const DECK_SIZE = 52;
+
+    const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+    const RANK_NAMES = { A: 'Ace', J: 'Jack', Q: 'Queen', K: 'King' };
+    const SUITS = [
+      { symbol: '♠', name: 'Spades', red: false },
+      { symbol: '♥', name: 'Hearts', red: true },
+      { symbol: '♦', name: 'Diamonds', red: true },
+      { symbol: '♣', name: 'Clubs', red: false },
+    ];
+    const SUIT_BY_SYMBOL = Object.fromEntries(SUITS.map((s) => [s.symbol, s]));
+
+    function freshOrder() {
+      const cards = [];
+      SUITS.forEach((suit) => RANKS.forEach((rank) => cards.push(rank + suit.symbol)));
+      return cards;
+    }
+
+    // Fisher-Yates - unbiased, and the standard choice for "shuffle an array".
+    function shuffled(cards) {
+      const arr = cards.slice();
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function describeCard(code) {
+      const symbol = code.slice(-1);
+      const rank = code.slice(0, -1);
+      const suit = SUIT_BY_SYMBOL[symbol];
+      return {
+        glyph: rank + symbol,
+        name: (RANK_NAMES[rank] || rank) + ' of ' + suit.name,
+        red: suit.red,
+      };
+    }
+
+    function isValidState(state) {
+      return !!state &&
+        Array.isArray(state.order) &&
+        state.order.length === DECK_SIZE &&
+        new Set(state.order).size === DECK_SIZE &&
+        Number.isInteger(state.drawnCount) &&
+        state.drawnCount >= 0 &&
+        state.drawnCount <= DECK_SIZE;
+    }
+
+    function loadDeckState() {
+      let raw = null;
+      if (window.AndroidBridge) {
+        raw = window.AndroidBridge.getCardDeckState();
+      } else {
+        try { raw = localStorage.getItem(STORAGE_KEY); } catch (e) { /* private/incognito storage */ }
+      }
+      try {
+        const parsed = raw ? JSON.parse(raw) : null;
+        if (isValidState(parsed)) return parsed;
+      } catch (e) { /* fall through to a fresh deck */ }
+      return { order: shuffled(freshOrder()), drawnCount: 0 };
+    }
+
+    function saveDeckState() {
+      const json = JSON.stringify(deckState);
+      if (window.AndroidBridge) {
+        window.AndroidBridge.saveCardDeckState(json);
+        return;
+      }
+      try {
+        localStorage.setItem(STORAGE_KEY, json);
+      } catch (e) {
+        // Private/incognito-style WebView storage, or storage full - the
+        // deck still works for this session, it just won't survive a restart.
+      }
+    }
+
+    let deckState = loadDeckState();
+
+    const log = document.getElementById('log');
+    const deckStatus = document.getElementById('deckStatus');
+    const drawBtn = document.getElementById('drawBtn');
+    const shuffleBtn = document.getElementById('shuffleBtn');
+    let first = true;
+
+    function remaining() { return deckState.order.length - deckState.drawnCount; }
+
+    function showEmptyHint(text) {
+      log.innerHTML = '<div class="empty">' + text + '</div>';
+      first = true;
+    }
+
+    function refresh() {
+      const left = remaining();
+      deckStatus.textContent = left + (left === 1 ? ' card left' : ' cards left');
+      drawBtn.disabled = left === 0;
+    }
+
+    function drawCard() {
+      if (remaining() === 0) return;
+      tapFeedback(drawBtn);
+      const code = deckState.order[deckState.drawnCount];
+      deckState.drawnCount++;
+      saveDeckState();
+
+      const { glyph, name, red } = describeCard(code);
+      if (first) { log.innerHTML = ''; first = false; }
+      appendCard(log, {
+        label: name,
+        gemVarName: red ? '--suit-red' : '--suit-black',
+        detailText: remaining() + ' left',
+        total: glyph,
+        isError: false,
+      });
+      log.scrollTop = log.scrollHeight;
+      refresh();
+      reportToNative('🃏 Drew ' + name, glyph);
+    }
+
+    function doShuffle() {
+      tapFeedback(shuffleBtn);
+      deckState = { order: shuffled(freshOrder()), drawnCount: 0 };
+      saveDeckState();
+      showEmptyHint('Fresh deck, shuffled - tap Draw.');
+      refresh();
+    }
+
+    // Initial hint reflects whatever was loaded - a deck picked back up
+    // mid-session reads differently from a brand new one.
+    showEmptyHint(
+      deckState.drawnCount === 0
+        ? 'Tap Draw to flip the top card.'
+        : remaining() + ' cards left from last time - tap Draw to continue.',
+    );
+    refresh();
+
+    drawBtn.addEventListener('click', drawCard);
+    shuffleBtn.addEventListener('click', doShuffle);
+  </script>
+</body>
+</html>

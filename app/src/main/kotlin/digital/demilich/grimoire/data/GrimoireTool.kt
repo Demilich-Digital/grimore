@@ -87,6 +87,16 @@ enum class GrimoireTool(
         pack = ToolPack.CORE,
         credit = "Demilich Digital",
     ),
+    CARD_DECK(
+        id = "card-deck",
+        assetPath = "tools/card-deck/index.html",
+        displayName = "Card Deck",
+        description = "A standard 52-card deck oracle - draw off the top one at a time, or shuffle to reset. Remembers your place between sessions.",
+        tags = listOf("random", "cards", "oracle"),
+        iconRes = R.drawable.ic_card_deck,
+        pack = ToolPack.CORE,
+        credit = "Demilich Digital",
+    ),
     ACTION_ROLL(
         id = "action-roll",
         assetPath = "tools/action-roll/index.html",

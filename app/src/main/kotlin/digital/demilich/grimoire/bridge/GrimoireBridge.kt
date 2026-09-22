@@ -31,6 +31,7 @@ class GrimoireBridge(private val context: Context) {
     private val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     private val macrosKey = stringPreferencesKey("user_macros")
     private val customDiceKey = stringPreferencesKey("user_custom_dice")
+    private val cardDeckKey = stringPreferencesKey("user_card_deck")
 
     @JavascriptInterface
     fun saveMacrosState(jsonString: String) {
@@ -50,6 +51,16 @@ class GrimoireBridge(private val context: Context) {
     @JavascriptInterface
     fun getDiceState(): String {
         return runBlocking { context.appDataStore.data.first()[customDiceKey] ?: "[]" }
+    }
+
+    @JavascriptInterface
+    fun saveCardDeckState(jsonString: String) {
+        runBlocking { context.appDataStore.edit { prefs -> prefs[cardDeckKey] = jsonString } }
+    }
+
+    @JavascriptInterface
+    fun getCardDeckState(): String {
+        return runBlocking { context.appDataStore.data.first()[cardDeckKey] ?: "" }
     }
 
     @JavascriptInterface
